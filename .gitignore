@@ -9,3 +9,6 @@ __pycache__
 /dist
 /repack-config.json
 /userspace/ksud/.lkm_image_bootstrap.o
+/out/
+*.jks
+*.keystore
