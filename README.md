@@ -1,5 +1,12 @@
 # KernelSU GXR
 
+![DANGER: Changing data with root privileges is extremely dangerous. It can cause data loss or leave the headset unable to boot. You perform all actions entirely at your own risk.](root-risk-warning.svg)
+
+> [!CAUTION]
+> **Changing data with root privileges is extremely dangerous. You perform all actions entirely at your own risk.**
+> Incorrect changes can cause permanent data loss or leave the headset unable to boot.
+> Temporary root does not undo persistent writes; a reboot may not restore the device.
+
 Experimental KernelSU build for **Samsung Galaxy XR SM-I610 (xrvst2)**,
 based on [diabl0w/KernelSU](https://github.com/diabl0w/KernelSU).
 
