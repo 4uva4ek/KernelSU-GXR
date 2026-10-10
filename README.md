@@ -1,0 +1,25 @@
+# KernelSU GXR
+
+Experimental KernelSU build for **Samsung Galaxy XR SM-I610 (xrvst2)**,
+based on [diabl0w/KernelSU](https://github.com/diabl0w/KernelSU).
+
+**Reference device test: firmware `I610UEU2AZF3`, DFRoot 4.1.**
+The module loaded and the Manager launched shell processes with UID 0.
+Reboot persistence and long-term stability have not been verified.
+
+- [Exact tested firmware, kernel and APK](TESTED.md)
+- [GXR build instructions and investigation](GALAXYXR.md)
+- [GXR releases](https://github.com/4uva4ek/KernelSU-GXR/releases)
+- [Build workflow](https://github.com/4uva4ek/KernelSU-GXR/actions/workflows/gxr-release.yml)
+
+This profile enables Samsung KDP/RKP, disables DEFEX, retains SCS/CFI and
+uses APK v2-only signing with a matching Manager certificate in the module.
+It is a Manager APK with a loadable module, not a replacement boot image.
+
+The default branch is `galaxyxr`. Tags beginning with `gxr-` automatically
+build and publish GXR prereleases. The generic Samsung release is disabled
+in this fork. The repackaged Manager retains its upstream update links;
+download GXR updates from this fork's Releases page.
+
+Upstream documentation is available in [docs/README.md](docs/README.md).
+Kernel code is GPL-2.0-only; other components retain their upstream licenses.
