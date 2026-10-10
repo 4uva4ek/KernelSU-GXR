@@ -1,12 +1,10 @@
-name: Release
+name: Upstream Samsung release (disabled in GXR fork)
 on:
-  push:
-    tags:
-      - "samsung-*"
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
   build-manager:
+    if: github.repository == 'diabl0w/KernelSU'
     uses: ./.github/workflows/build-manager.yml
     secrets: inherit
   release:

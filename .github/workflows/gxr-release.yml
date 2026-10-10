@@ -1,0 +1,86 @@
+name: KernelSU GXR release
+
+on:
+  push:
+    tags: ['gxr-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gxr-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == '4uva4ek/KernelSU-GXR'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require GXR source
+        run: |
+          git merge-base --is-ancestor 10aa21cbb6a2b05d7792f60cde76565b99d89a63 HEAD
+          test -f scripts/build-gxr.sh
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev llvm-dev pkg-config
+          rustup toolchain install 1.99.0 --profile minimal --target aarch64-linux-android
+          rustup default 1.99.0
+          sdkmanager 'build-tools;36.0.0' 'ndk;29.0.14206865'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - name: Download pinned packaging inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download samsung-v1.0 --repo diabl0w/KernelSU --pattern KernelSU_samsung-v1.0_32664-release.apk --dir "$RUNNER_TEMP"
+          gh release download v3.0.3 --repo iBotPeaches/Apktool --pattern apktool_3.0.3.jar --dir "$RUNNER_TEMP"
+      - name: Build and verify GXR with retained signing identity
+        env:
+          GXR_KEYSTORE_BASE64: ${{ secrets.GXR_KEYSTORE_BASE64 }}
+          GXR_STORE_PASS: ${{ secrets.GXR_STORE_PASS }}
+          GXR_KEY_PASS: ${{ secrets.GXR_KEY_PASS }}
+          GXR_KEY_ALIAS: ${{ secrets.GXR_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          : "${GXR_KEYSTORE_BASE64:?Missing GXR signing secrets}"
+          export GXR_KEYSTORE="$RUNNER_TEMP/gxr.jks"
+          trap 'rm -f -- "$GXR_KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$GXR_KEYSTORE_BASE64" | base64 --decode > "$GXR_KEYSTORE"
+          export GXR_BASE_APK="$RUNNER_TEMP/KernelSU_samsung-v1.0_32664-release.apk"
+          export GXR_APKTOOL="$RUNNER_TEMP/apktool_3.0.3.jar"
+          bash scripts/build-gxr.sh
+          printf 'Source: %s\nRef: %s\nBuild: %s/%s/actions/runs/%s\nProfile: SM-I610, android12-5.10, KDP=y, DEFEX=n, RKP_NO_PATCH_TEXT=y, SCS=y, CFI=y\nSigning: APK v2 only\n' "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > out/gxr/BUILD-INFO.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KernelSU-GXR-${{ github.sha }}
+          path: out/gxr/
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/gxr-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: KernelSU-GXR-${{ github.sha }}
+          path: dist
+      - name: Publish GXR prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --prerelease --title "KernelSU GXR $GITHUB_REF_NAME" --notes "Experimental Samsung Galaxy XR SM-I610 build. KDP/RKP enabled, DEFEX disabled, SCS/CFI retained. Manager uses the retained GXR key and APK v2-only signing. See GALAXYXR.md at this tag for tested scope and installation. Reboot persistence and long-term stability remain unverified."
