@@ -64,6 +64,7 @@ jobs:
           export GXR_BASE_APK="$RUNNER_TEMP/KernelSU_samsung-v1.0_32664-release.apk"
           export GXR_APKTOOL="$RUNNER_TEMP/apktool_3.0.3.jar"
           bash scripts/build-gxr.sh
+          cp TESTED.md out/gxr/TESTED.md
           printf 'Source: %s\nRef: %s\nBuild: %s/%s/actions/runs/%s\nProfile: SM-I610, android12-5.10, KDP=y, DEFEX=n, RKP_NO_PATCH_TEXT=y, SCS=y, CFI=y\nSigning: APK v2 only\n' "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > out/gxr/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -87,4 +88,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --prerelease --title "KernelSU GXR $GITHUB_REF_NAME" --notes "Experimental Samsung Galaxy XR SM-I610 build. KDP/RKP enabled, DEFEX disabled, SCS/CFI retained. Manager uses the retained GXR key and APK v2-only signing. See GALAXYXR.md at this tag for tested scope and installation. Reboot persistence and long-term stability remain unverified."
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --prerelease --title "KernelSU GXR $GITHUB_REF_NAME" --notes-file dist/TESTED.md
