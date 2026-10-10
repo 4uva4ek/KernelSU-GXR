@@ -3,7 +3,7 @@
 Experimental KernelSU build for **Samsung Galaxy XR SM-I610 (xrvst2)**,
 based on [diabl0w/KernelSU](https://github.com/diabl0w/KernelSU).
 
-**Reference device test: firmware `I610UEU2AZF3`, DFRoot 4.1.**
+**Reference device test: firmware `I610UEU2AZF3`, [DFRoot 4.1](https://github.com/diabl0w/DFRoot).**
 The module loaded and the Manager launched shell processes with UID 0.
 Reboot persistence and long-term stability have not been verified.
 
@@ -15,6 +15,7 @@ Reboot persistence and long-term stability have not been verified.
 This profile enables Samsung KDP/RKP, disables DEFEX, retains SCS/CFI and
 uses APK v2-only signing with a matching Manager certificate in the module.
 It is a Manager APK with a loadable module, not a replacement boot image.
+Load the module using [DFRoot](https://github.com/diabl0w/DFRoot).
 
 The default branch is `galaxyxr`. Tags beginning with `gxr-` automatically
 build and publish GXR prereleases. The generic Samsung release is disabled

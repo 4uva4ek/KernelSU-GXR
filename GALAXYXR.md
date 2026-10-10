@@ -79,7 +79,9 @@ Use DFRoot to load the module; do not flash this APK as a boot image.
 The `KernelSU GXR release` workflow builds this profile only. Push a `gxr-*`
 tag from the `galaxyxr` branch to build and publish a prerelease with the APK,
 module, ksud, build metadata and checksums. A manual Actions run builds the
-same files as an artifact without publishing a release.
+same files as an artifact when `release_tag` is empty. To publish from the
+Actions UI, enter a new `gxr-*` version in `release_tag`; the tag and release
+are created only after the build and checks succeed.
 
 Configure repository Actions secrets `GXR_KEYSTORE_BASE64`, `GXR_STORE_PASS`,
 `GXR_KEY_PASS` and `GXR_KEY_ALIAS` using the retained signing key. Missing

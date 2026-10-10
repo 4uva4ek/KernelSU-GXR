@@ -8,7 +8,7 @@
 | Codename | xrvst2 |
 | Device firmware / build | `I610UEU2AZF3` |
 | Running kernel | `5.10.240-android12-9-perf-33775878-abI610UEU2AZF3` |
-| Module loader | DFRoot 4.1 |
+| Module loader | [DFRoot 4.1](https://github.com/diabl0w/DFRoot) |
 | KernelSU source base | `diabl0w/KernelSU`, `samsung-v1.0`, commit `10aa21cbb6a2b05d7792f60cde76565b99d89a63` |
 | Tested local APK | `KernelSU-GXR_32664_no-DEFEX.apk` |
 | APK SHA256 | `106c1646a3a03652ba2946b6e927299c49a8abb705ddb4ea58cad6166e5a3576` |
@@ -36,4 +36,5 @@ above describes the specific local APK tested on the reference device.
 Each generated package includes `BUILD-INFO.txt` with its source commit and
 workflow run, and `SHA256SUMS.txt` for the compiled files.
 
-Use DFRoot to load the module. Do not flash the APK as a boot image.
+Use [DFRoot](https://github.com/diabl0w/DFRoot) to load the module.
+Do not flash the APK as a boot image.
