@@ -4,6 +4,11 @@ on:
   push:
     tags: ['gxr-*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional new gxr-* tag to build and publish; empty builds artifacts only'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -23,9 +28,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Require GXR source
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           git merge-base --is-ancestor 10aa21cbb6a2b05d7792f60cde76565b99d89a63 HEAD
           test -f scripts/build-gxr.sh
+          if [[ -n "$RELEASE_TAG" ]]; then
+            [[ "$RELEASE_TAG" =~ ^gxr-[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || exit 1
+            if git rev-parse --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+              echo 'Release tag already exists; use a new version.' >&2
+              exit 1
+            fi
+          fi
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -74,7 +88,7 @@ jobs:
           retention-days: 30
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/gxr-')
+    if: startsWith(github.ref, 'refs/tags/gxr-') || inputs.release_tag != ''
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -87,5 +101,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --prerelease --title "KernelSU GXR $GITHUB_REF_NAME" --notes-file dist/TESTED.md
+          if [[ "$GITHUB_REF" == refs/tags/gxr-* ]]; then
+            tag_args=(--verify-tag)
+          else
+            tag_args=(--target "$GITHUB_SHA")
+          fi
+          gh release create "$RELEASE_TAG" dist/* "${tag_args[@]}" --prerelease --title "KernelSU GXR $RELEASE_TAG" --notes-file dist/TESTED.md
