@@ -1,3 +1,7 @@
+> **GXR 1.1.0: Live control** ? compatible modules apply/restore their patches
+> immediately when toggled. Standard modules and the Action button retain their
+> existing behavior. See [feature and safety notes](GALAXYXR.md#live-module-checkbox-control-gxr-110).
+
 # KernelSU GXR
 
 ![DANGER: Changing data with root privileges is extremely dangerous. It can cause data loss or leave the headset unable to boot. You perform all actions entirely at your own risk.](root-risk-warning.svg)

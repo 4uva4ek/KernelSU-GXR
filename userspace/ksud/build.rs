@@ -10,6 +10,12 @@ const BOOTSTRAP_OBJECT: &str = "lkm_image_bootstrap.o";
 const PREPARED_BOOTSTRAP_OBJECT: &str = ".lkm_image_bootstrap.o";
 
 fn get_git_version() -> Result<(u32, String), std::io::Error> {
+    if let (Ok(code), Ok(name)) = (
+        env::var("KSU_BUILD_VERSION_CODE"),
+        env::var("KSU_BUILD_VERSION_NAME"),
+    ) {
+        return Ok((code.parse().map_err(io::Error::other)?, name));
+    }
     let output = Command::new("git")
         .args(["rev-list", "--count", "HEAD"])
         .output()?;
