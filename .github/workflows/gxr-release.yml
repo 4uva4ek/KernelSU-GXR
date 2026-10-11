@@ -96,6 +96,15 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
+          set -euo pipefail
+          # A tag push can race with a release published outside this workflow.
+          # Listing must succeed: API/auth failures must not look like a missing release.
+          release_tags=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name')
+          if grep -Fxq -- "$RELEASE_TAG" <<< "$release_tags"; then
+            echo "::notice::Release $RELEASE_TAG already exists; publication skipped. Build artifacts are retained."
+            printf 'Release `%s` already exists. Publication skipped; existing assets are unchanged. The build artifact is available in this run.\n' "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [[ "$GITHUB_REF" == refs/tags/gxr-* ]]; then
             tag_args=(--verify-tag)
           else
