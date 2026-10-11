@@ -1,0 +1,11 @@
+[package]
+name = "init-event-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[workspace]
+[lib]
+path = "lib.rs"
+[dependencies]
+anyhow = "1"
+log = "0.4"

@@ -207,7 +207,7 @@ pub fn soft_reboot() -> Result<()> {
     let code = match result.and(release_result) {
         Ok(()) => {
             info!(
-                "soft restart complete in {} ms; wake lock released",
+                "Android restart complete in {} ms; module scripts dispatched; runtime activation must be checked with module Action; wake lock released",
                 began.elapsed().as_millis()
             );
             0
@@ -237,7 +237,7 @@ fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
     run_stage(
         "emulated-soft-reboot",
         ScriptWait::Until(Instant::now() + defs::EMULATED_SOFT_REBOOT_TIMEOUT),
-    );
+    )?;
 
     let mut waitsys = match Waitsys::spawn() {
         Ok(waitsys) => Some(waitsys),
@@ -298,7 +298,7 @@ fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
     }
     crate::restart_stage::ready()?;
     info!("services: coordinated Android restart and participant verification complete");
-    on_services();
-    on_boot_completed();
+    on_services().context("Android restarted, but module service dispatch failed")?;
+    on_boot_completed().context("Android restarted, but boot-completed dispatch failed")?;
     Ok(())
 }

@@ -1,6 +1,27 @@
 # KernelSU GXR: tested configuration
 
-## Current release: GXR 1.0.3
+## Current release: GXR 1.0.4
+
+Manager `samsung-gxr-v1.0.4`, code `32669`. The exact signed release APK
+was installed and tested; its SHA-256 is
+`5c0d71f7034eeb94c8d54990cdd1325e80906f96b7cb7aea228d9575ba74317a`.
+Embedded and deployed daemon SHA-256:
+`dfe94b55316418a312c1e676033cdabbc76cce433e660f747cbfd7bf7051db19`.
+
+During an intentional same-version reinstall in a soft restart, the running
+executable became `/data/adb/ksud (deleted)`. All four module supervisors
+successfully launched through `/proc/self/exe`. Haptics MAIN, module-owned
+Whitening and Timestamp were verified live. Velocity's worker was alive and
+waiting for an OpenXR app. Framebuffer10 was disabled and removed; it was
+not activated in this test. The kernel boot ID was unchanged, with no restart
+error. The kernel/root payload remains unchanged.
+
+Android check, clippy with warnings denied, formatting, deleted-executable
+regression, lifecycle guards and six stage-error propagation tests passed.
+Full power-cycle and active-app Velocity validation were not performed.
+See [1.0.4 details](docs/RELEASE-1.0.4.md).
+
+## Historical release: GXR 1.0.3
 
 See [1.0.3 changes and test scope](docs/RELEASE-1.0.3.md) and the
 [restart API](docs/COORDINATED-RESTART.md). The Manager version is

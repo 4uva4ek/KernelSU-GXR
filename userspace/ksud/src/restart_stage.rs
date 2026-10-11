@@ -235,12 +235,33 @@ fn run_one(
     }
     result
 }
+// Keep the executable inode even when Manager replaces the installed daemon.
+// Resolving this magic symlink can return a non-existent " (deleted)" path.
+fn self_command() -> Command {
+    Command::new("/proc/self/exe")
+}
+
 pub fn launch(path: &Path) -> Result<()> {
-    Command::new(std::env::current_exe()?)
+    let executable =
+        fs::read_link("/proc/self/exe").context("read running supervisor executable")?;
+    #[cfg(not(test))]
+    log::info!(
+        "supervisor source={} script={}; exec=/proc/self/exe",
+        executable.display(),
+        path.display()
+    );
+    self_command()
         .arg("supervise-script")
         .arg(path)
         .arg(generation()?)
-        .spawn()?;
+        .spawn()
+        .with_context(|| {
+            format!(
+                "launch supervisor via /proc/self/exe ({}) for {}",
+                executable.display(),
+                path.display()
+            )
+        })?;
     Ok(())
 }
 pub fn supervise(path: &Path, generation: &str) -> Result<()> {
@@ -261,12 +282,63 @@ pub fn supervise(path: &Path, generation: &str) -> Result<()> {
     let result = module::exec_script_direct(&path, module::ScriptWait::Forever);
     crate::service_guard::wait_descendants()?;
     lease.finish(result.is_ok())?;
+    if let Err(error) = &result {
+        fs::write(
+            format!("{STATE}/error"),
+            format!("module script {} failed: {error:#}\n", path.display()),
+        )?;
+    }
     result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn replaced_executable_still_launches_same_supervisor() {
+        let d = tempfile::tempdir().unwrap();
+        let exe = d.path().join("ksud");
+        fs::copy(std::env::current_exe().unwrap(), &exe).unwrap();
+        let test = format!(
+            "{}::deleted_executable_fixture",
+            module_path!().split_once("::").unwrap().1
+        );
+        assert!(
+            Command::new(&exe)
+                .args(["--exact", &test, "--nocapture"])
+                .env("KSU_UNLINK_FIXTURE", &exe)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    #[test]
+    fn deleted_executable_fixture() {
+        let Ok(exe) = std::env::var("KSU_UNLINK_FIXTURE") else {
+            return;
+        };
+        fs::remove_file(exe).unwrap();
+        let resolved = std::env::current_exe().unwrap();
+        assert!(resolved.to_string_lossy().ends_with(" (deleted)"));
+        assert_eq!(
+            Command::new(&resolved)
+                .arg("--list")
+                .status()
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert!(
+            self_command()
+                .arg("--list")
+                .env_remove("KSU_UNLINK_FIXTURE")
+                .stdout(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
     #[test]
     fn failed_hook_output_is_saved_and_large_output_is_bounded() {
         let (_d, m, s) = fixture();

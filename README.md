@@ -12,12 +12,12 @@ based on [diabl0w/KernelSU](https://github.com/diabl0w/KernelSU).
 
 **Reference device test: firmware `I610UEU2AZF3`, [DFRoot 4.1](https://github.com/diabl0w/DFRoot).**
 The module loaded and the Manager launched shell processes with UID 0.
-The 1.0.3 userspace passed two consecutive coordinated soft restarts with active
-display and controller modules. Cold-boot persistence and long-term stability
-have not been verified. See the versioned evidence below.
+The 1.0.4 userspace passed a soft-restart test with its running daemon file
+replaced: controller modules started successfully. Cold-boot persistence and
+long-term stability have not been verified. See the versioned evidence below.
 
 - [Exact tested firmware, kernel and APK](TESTED.md)
-- [1.0.3 changes and validation](docs/RELEASE-1.0.3.md)
+- [1.0.4 changes and validation](docs/RELEASE-1.0.4.md)
 - [Coordinated restart API for module authors](docs/COORDINATED-RESTART.md)
 - [GXR build instructions and investigation](GALAXYXR.md)
 - [GXR releases](https://github.com/4uva4ek/KernelSU-GXR/releases)

@@ -521,10 +521,7 @@ pub fn run() -> Result<()> {
 
     let result = match cli.command {
         Commands::PostFsData => init_event::on_post_fs_data(),
-        Commands::BootCompleted => {
-            init_event::on_boot_completed();
-            Ok(())
-        }
+        Commands::BootCompleted => init_event::on_boot_completed(),
 
         Commands::SoftReboot => crate::soft_reboot::soft_reboot(),
         Commands::SuperviseScript { path, generation } => {
@@ -680,8 +677,7 @@ pub fn run() -> Result<()> {
                 info!("KernelSU not available, exiting services");
                 std::process::exit(0);
             }
-            init_event::on_services();
-            Ok(())
+            init_event::on_services()
         }
         Commands::Sulogd => sulog::run_sulogd(),
         Commands::Profile { command } => match command {

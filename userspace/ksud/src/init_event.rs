@@ -113,49 +113,46 @@ pub fn on_post_fs_data() -> Result<()> {
         warn!("execute metamodule mount failed: {e}");
     }
 
-    run_stage("post-mount", wait);
+    run_stage("post-mount", wait)?;
 
     std::env::set_current_dir("/").with_context(|| "failed to chdir to /")?;
 
     Ok(())
 }
 
-pub fn run_stage(stage: &str, wait: ScriptWait) {
+pub fn run_stage(stage: &str, wait: ScriptWait) -> Result<()> {
     utils::umask(0);
 
     if utils::has_magisk() {
         warn!("Magisk detected, skip {stage}");
-        return;
+        return Ok(());
     }
 
     if crate::utils::is_safe_mode() {
         warn!("safe mode, skip {stage} scripts");
-        return;
+        return Ok(());
     }
 
-    if let Err(e) = crate::module::exec_common_scripts(&format!("{stage}.d"), wait) {
-        warn!("Failed to exec common {stage} scripts: {e}");
-    }
+    crate::module::exec_common_scripts(&format!("{stage}.d"), wait)
+        .with_context(|| format!("Failed to exec common {stage} scripts"))?;
 
     // execute metamodule stage script first (priority)
-    if let Err(e) = metamodule::exec_stage_script(stage, wait) {
-        warn!("Failed to exec metamodule {stage} script: {e}");
-    }
+    metamodule::exec_stage_script(stage, wait)
+        .with_context(|| format!("Failed to exec metamodule {stage} script"))?;
 
     // execute regular modules stage scripts
-    if let Err(e) = crate::module::exec_stage_script(stage, wait) {
-        warn!("Failed to exec {stage} scripts: {e}");
-    }
+    crate::module::exec_stage_script(stage, wait)
+        .with_context(|| format!("Failed to exec {stage} scripts"))?;
+    Ok(())
 }
 
-pub fn on_services() {
+pub fn on_services() -> Result<()> {
     if crate::restart_stage::blocked() {
         info!("services deferred until coordinated restart completes");
-        return;
+        return Ok(());
     }
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
-        error!("{e:#}, skip on_services");
-        return;
+        return Err(e).context("skip on_services");
     }
 
     // A native cold-boot service event uses the same transaction as Manager.
@@ -163,14 +160,11 @@ pub fn on_services() {
     if !std::path::Path::new("/dev/ksu-restart-stage/ready").exists() {
         match crate::restart_stage::participants() {
             Ok(p) if !p.is_empty() => {
-                if let Err(e) = crate::soft_reboot::soft_reboot() {
-                    error!("cold service preparation failed: {e:#}");
-                }
-                return;
+                return crate::soft_reboot::soft_reboot()
+                    .context("cold service preparation failed");
             }
             Err(e) => {
-                error!("invalid restart participants: {e:#}");
-                return;
+                return Err(e).context("invalid restart participants");
             }
             _ => {}
         }
@@ -180,37 +174,35 @@ pub fn on_services() {
         Ok(true) => {}
         Ok(false) => {
             info!("services already started, skipping");
-            return;
+            return Ok(());
         }
         Err(e) => {
-            error!("Failed to report services: {e:#}");
-            return;
+            return Err(e).context("Failed to report services");
         }
     }
 
     info!("on_services triggered!");
-    run_stage("service", ScriptWait::NoWait);
+    run_stage("service", ScriptWait::NoWait)
 }
 
-pub fn on_boot_completed() {
+pub fn on_boot_completed() -> Result<()> {
     if crate::restart_stage::blocked() {
         info!("boot-completed deferred until coordinated restart completes");
-        return;
+        return Ok(());
     }
     if !std::path::Path::new("/dev/ksu-restart-stage/ready").exists()
         && crate::restart_stage::participants().is_ok_and(|p| !p.is_empty())
     {
-        return;
+        return Ok(());
     }
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
-        error!("{e:#}, skip on_boot_completed");
-        return;
+        return Err(e).context("skip on_boot_completed");
     }
 
     ksucalls::report_boot_complete();
     info!("on_boot_completed triggered!");
 
-    run_stage("boot-completed", ScriptWait::NoWait);
+    run_stage("boot-completed", ScriptWait::NoWait)
 }
 
 fn catch_bootlog(logname: &str, command: &[&str]) -> Result<()> {
