@@ -193,6 +193,9 @@ pub fn soft_reboot() -> Result<()> {
     info!("restart wake lock acquired; maximum lifetime 180 seconds");
     let began = Instant::now();
     let result = perform_soft_reboot(&restart_guard);
+    if let Err(error) = &result {
+        let _ = std::fs::write("/dev/ksu-restart-stage/error", format!("{error:#}\n"));
+    }
     let release_result = restart_guard
         .release()
         .context("restart wake-lock release failed; kernel timeout remains armed");
@@ -222,6 +225,14 @@ pub fn soft_reboot() -> Result<()> {
 
 fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
     info!("emulating soft_reboot!");
+    crate::restart_stage::begin()?;
+    let participants = crate::restart_stage::participants()?;
+    let deadline = Instant::now() + restart_guard.remaining();
+    // Preflight is before resetting Android's ready flag and before stopping it.
+    if let Err(error) = crate::restart_stage::run(&participants, "prepare", deadline) {
+        let _ = crate::restart_stage::run(&participants, "abort", deadline);
+        return Err(error);
+    }
     reset_boot_completed()?;
     run_stage(
         "emulated-soft-reboot",
@@ -264,14 +275,30 @@ fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
     // Even if module setup fails, attempt the standard start before returning
     // the error. Do not leave Android stopped because of a setup error.
     let setup_result = on_post_fs_data();
+    let prepare_result =
+        setup_result.and_then(|()| crate::restart_stage::run(&participants, "stopped", deadline));
+    if prepare_result.is_err() {
+        // Participants must clear temporary startup substitutions before start.
+        crate::restart_stage::run(&participants, "abort", deadline)?;
+    }
     set_rescue_party_boot_reason();
     info!("start");
     let status = Command::new("start").status().context("start failed")?;
     ensure!(status.success(), "start exited with status: {status}");
-    setup_result?;
-    info!("services");
+    prepare_result?;
+    let verified = wait_for_boot_completed(restart_guard.remaining())
+        .and_then(|()| crate::restart_stage::run(&participants, "started", deadline));
+    if let Err(error) = verified {
+        let _ = crate::restart_stage::run(
+            &participants,
+            "abort",
+            Instant::now() + std::time::Duration::from_secs(30),
+        );
+        return Err(error);
+    }
+    crate::restart_stage::ready()?;
+    info!("services: coordinated Android restart and participant verification complete");
     on_services();
-    wait_for_boot_completed(restart_guard.remaining())?;
     on_boot_completed();
     Ok(())
 }

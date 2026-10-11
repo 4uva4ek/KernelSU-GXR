@@ -149,9 +149,31 @@ pub fn run_stage(stage: &str, wait: ScriptWait) {
 }
 
 pub fn on_services() {
+    if crate::restart_stage::blocked() {
+        info!("services deferred until coordinated restart completes");
+        return;
+    }
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip on_services");
         return;
+    }
+
+    // A native cold-boot service event uses the same transaction as Manager.
+    // GXR late-load does not dispatch this event; its explicit soft reboot does.
+    if !std::path::Path::new("/dev/ksu-restart-stage/ready").exists() {
+        match crate::restart_stage::participants() {
+            Ok(p) if !p.is_empty() => {
+                if let Err(e) = crate::soft_reboot::soft_reboot() {
+                    error!("cold service preparation failed: {e:#}");
+                }
+                return;
+            }
+            Err(e) => {
+                error!("invalid restart participants: {e:#}");
+                return;
+            }
+            _ => {}
+        }
     }
 
     match ksucalls::report_services() {
@@ -171,6 +193,15 @@ pub fn on_services() {
 }
 
 pub fn on_boot_completed() {
+    if crate::restart_stage::blocked() {
+        info!("boot-completed deferred until coordinated restart completes");
+        return;
+    }
+    if !std::path::Path::new("/dev/ksu-restart-stage/ready").exists()
+        && crate::restart_stage::participants().is_ok_and(|p| !p.is_empty())
+    {
+        return;
+    }
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip on_boot_completed");
         return;

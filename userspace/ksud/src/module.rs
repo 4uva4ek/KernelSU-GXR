@@ -160,7 +160,7 @@ pub fn foreach_module(
     Ok(())
 }
 
-fn foreach_active_module(f: impl FnMut(&Path) -> Result<()>) -> Result<()> {
+pub fn foreach_active_module(f: impl FnMut(&Path) -> Result<()>) -> Result<()> {
     foreach_module(Active, f)
 }
 
@@ -271,6 +271,16 @@ impl Drop for SigchldBlock {
 }
 
 pub fn exec_script<T: AsRef<Path>>(path: T, wait: ScriptWait) -> Result<()> {
+    let stage = path.as_ref().file_name().and_then(|s| s.to_str());
+    if matches!(wait, ScriptWait::NoWait)
+        && matches!(stage, Some("service.sh" | "boot-completed.sh"))
+    {
+        return crate::restart_stage::launch(path.as_ref());
+    }
+    exec_script_direct(path, wait)
+}
+
+pub fn exec_script_direct<T: AsRef<Path>>(path: T, wait: ScriptWait) -> Result<()> {
     info!("exec {}", path.as_ref().display());
 
     let is_module_script = path.as_ref().starts_with(defs::MODULE_DIR);
@@ -337,7 +347,13 @@ pub fn exec_script<T: AsRef<Path>>(path: T, wait: ScriptWait) -> Result<()> {
 
     let result = match wait {
         ScriptWait::NoWait => command.spawn().map(|_| ()),
-        ScriptWait::Forever => command.status().map(|_| ()),
+        ScriptWait::Forever => command.status().and_then(|s| {
+            if s.success() {
+                Ok(())
+            } else {
+                Err(std::io::Error::other(format!("script exited {s}")))
+            }
+        }),
         ScriptWait::Until(deadline) => command.spawn().and_then(|child| {
             // Once the shared deadline has passed, launch later scripts without waiting.
             if deadline > Instant::now()
@@ -379,8 +395,8 @@ pub fn exec_common_scripts(dir: &str, wait: ScriptWait) -> Result<()> {
         return Ok(());
     }
 
-    let dir = std::fs::read_dir(&script_dir)?;
-    for entry in dir.flatten() {
+    let entries = std::fs::read_dir(&script_dir)?;
+    for entry in entries.flatten() {
         let path = entry.path();
 
         if !is_executable(&path) {
@@ -388,7 +404,11 @@ pub fn exec_common_scripts(dir: &str, wait: ScriptWait) -> Result<()> {
             continue;
         }
 
-        exec_script(path, wait)?;
+        if matches!(wait, ScriptWait::NoWait) && matches!(dir, "service.d" | "boot-completed.d") {
+            crate::restart_stage::launch(&path)?;
+        } else {
+            exec_script(path, wait)?;
+        }
     }
 
     Ok(())

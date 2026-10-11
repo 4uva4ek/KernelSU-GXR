@@ -1,5 +1,25 @@
 # KernelSU GXR: tested configuration
 
+## Current release: GXR 1.0.3
+
+See [1.0.3 changes and test scope](docs/RELEASE-1.0.3.md) and the
+[restart API](docs/COORDINATED-RESTART.md). The Manager version is
+`samsung-gxr-v1.0.3`, code `32668`; the original GXR kernel payload is unchanged.
+
+The local test APK SHA-256 was
+`719c9bebff288f4ce09db3a7de8936ee9edfc3ef9befa95e81188526e15f5475`.
+Its embedded/deployed ksud SHA-256 was
+`3b54400ff1b5928e8871c89ffaaa5545691fb52810ccae26e0760704fe98dc1f`.
+Two consecutive coordinated soft restarts passed with active Framebuffer10
+0.3.1 and Whitening 0.1.3; Haptics was also verified active, and Velocity was
+waiting for an OpenXR target. An earlier cycle passed on 1.0.2. This is runtime
+lifecycle evidence, not a visual/physical quality or cold-boot validation.
+
+The public APK uses the same daemon but removes the test-only installation flag.
+Its exact signed bytes have not been device-tested. Release hashes and build
+provenance are supplied separately. The sections below retain historical tests
+and must not be interpreted as tests of every later binary.
+
 ## Reference device test
 
 | Item | Tested value |

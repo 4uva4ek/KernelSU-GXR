@@ -1,0 +1,12 @@
+[package]
+name = "service-guard-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[workspace]
+[lib]
+path = "../../../userspace/ksud/src/service_guard.rs"
+[dependencies]
+libc = "0.2"
+[dev-dependencies]
+tempfile = "3"

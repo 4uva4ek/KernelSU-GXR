@@ -12,9 +12,13 @@ based on [diabl0w/KernelSU](https://github.com/diabl0w/KernelSU).
 
 **Reference device test: firmware `I610UEU2AZF3`, [DFRoot 4.1](https://github.com/diabl0w/DFRoot).**
 The module loaded and the Manager launched shell processes with UID 0.
-Reboot persistence and long-term stability have not been verified.
+The 1.0.3 userspace passed two consecutive coordinated soft restarts with active
+display and controller modules. Cold-boot persistence and long-term stability
+have not been verified. See the versioned evidence below.
 
 - [Exact tested firmware, kernel and APK](TESTED.md)
+- [1.0.3 changes and validation](docs/RELEASE-1.0.3.md)
+- [Coordinated restart API for module authors](docs/COORDINATED-RESTART.md)
 - [GXR build instructions and investigation](GALAXYXR.md)
 - [GXR releases](https://github.com/4uva4ek/KernelSU-GXR/releases)
 - [Build workflow](https://github.com/4uva4ek/KernelSU-GXR/actions/workflows/gxr-release.yml)
@@ -25,8 +29,8 @@ It is a Manager APK with a loadable module, not a replacement boot image.
 Load the module using [DFRoot](https://github.com/diabl0w/DFRoot).
 
 The default branch is `galaxyxr`. Tags beginning with `gxr-` automatically
-build and publish GXR prereleases. The generic Samsung release is disabled
-in this fork. The repackaged Manager retains its upstream update links;
+build and publish GXR releases. The generic Samsung release is disabled
+in this fork. The source-built Manager retains its upstream update links;
 download GXR updates from this fork's Releases page.
 
 Upstream documentation is available in [docs/README.md](docs/README.md).

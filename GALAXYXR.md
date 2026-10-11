@@ -47,7 +47,7 @@ Create and retain your own RSA signing keystore outside the repository. Set:
 ```bash
 export ANDROID_HOME=/path/to/android-sdk
 export ANDROID_NDK_HOME=/path/to/android-ndk-r29
-export GXR_VERSION_NAME=gxr-v1.0.1
+export GXR_VERSION_NAME=gxr-v1.0.3
 export GXR_KEYSTORE=/private/path/gxr.jks
 export GXR_KEY_ALIAS=gxr
 read -rs -p 'Keystore password: ' GXR_STORE_PASS; echo
@@ -92,7 +92,13 @@ Configure repository Actions secrets `GXR_KEYSTORE_BASE64`, `GXR_STORE_PASS`,
 secrets fail the build; CI never generates a replacement signing identity.
 The old Samsung release workflow is disabled in this fork.
 
-The packaged Manager DEX is pinned to samsung-v1.0. It retains that APK's
-version code and update links; releases are obtained from this fork's GitHub
-Releases page, not the Manager's upstream update prompt. Changes to Manager
-code or its native interface require updating the packaging strategy first.
+The Manager is built from this repository's source. It retains upstream update
+links; obtain GXR releases from this fork's Releases page. Direct local Gradle
+release builds must set `-Pandroid.injected.testOnly=false` so ordinary APK
+installation does not require `adb install -t`.
+
+## Coordinated module restarts
+
+See [Coordinated Android restart stages](docs/COORDINATED-RESTART.md) for the GXR
+1.0.3 userspace lifecycle, why it was introduced, hook contracts, cold/soft boot
+behavior, duplicate prevention and third-party compatibility limits.

@@ -43,10 +43,12 @@ mod module_config;
 mod profile;
 #[cfg(target_os = "android")]
 mod resetprop;
+mod restart_stage;
 #[cfg(target_os = "android")]
 mod restorecon;
 #[cfg(target_os = "android")]
 mod sepolicy;
+mod service_guard;
 #[cfg(target_os = "android")]
 mod soft_reboot;
 #[cfg(target_os = "android")]

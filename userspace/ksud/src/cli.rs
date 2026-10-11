@@ -71,6 +71,8 @@ enum Commands {
 
     /// Emulate system reboot
     SoftReboot,
+    #[command(hide = true)]
+    SuperviseScript { path: PathBuf, generation: String },
 
     /// Load a kernel module with kallsyms access
     Insmod {
@@ -525,6 +527,9 @@ pub fn run() -> Result<()> {
         }
 
         Commands::SoftReboot => crate::soft_reboot::soft_reboot(),
+        Commands::SuperviseScript { path, generation } => {
+            crate::restart_stage::supervise(&path, &generation)
+        }
 
         Commands::Insmod { module, params } => debug::insmod(&module, &params),
 
