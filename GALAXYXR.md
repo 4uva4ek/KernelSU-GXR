@@ -92,38 +92,3 @@ The packaged Manager DEX is pinned to samsung-v1.0. It retains that APK's
 version code and update links; releases are obtained from this fork's GitHub
 Releases page, not the Manager's upstream update prompt. Changes to Manager
 code or its native interface require updating the packaging strategy first.
-
-## Live module checkbox control (GXR 1.1.0)
-
-The Manager keeps its existing Action button. The embedded userspace ksud now
-recognizes `gxrLiveControl=1` in module.prop. Only those modules receive
-`live-control.sh enable` or `disable` synchronously when their checkbox changes.
-Other modules follow the unchanged standard enable/disable path.
-
-The module hook must confirm its own activation/rollback and return a nonzero
-status on failure. It is bounded by a 45-second timeout; failure sets disable.
-A compatible automatic module may report waiting while no target process exists.
-Background health failures are visible when the Manager refreshes its module list.
-No new UI button, kernel module or root-acquisition mechanism is introduced.
-
-Opt-in toggles do not regenerate metadata/preinit startup files: this protocol is
-for these private-memory modules, not mount/boot modifications. The normal module
-installer remains subject to the existing metadata warning; do not use it here.
-
-This APK is signed with the same GXR certificate and can update the existing app
-without reapplying live root. Its Manager DEX is unchanged; only embedded ksud was
-replaced. The previous APK was preserved before installation. Kernel and firmware
-files on the headset were not changed. Full reboot was not tested in this update.
-
-Compatible module names contain **Live control**. This is a display label;
-`gxrLiveControl=1` is the actual opt-in contract. Renaming an unrelated module
-does not change its behavior. The three companion releases are Haptic MAIN 0.4.1,
-Controller Extrapolation 0.3.1 and OpenXR Velocity Frame 0.2.1.
-
-Validation on the installed Manager executable: haptic checkbox handler off/on
-restored/reapplied the patch; the automatic health check completed. OpenXR worker
-started and waited for an absent app. An inert fixture confirmed failure leaves
-disabled and a later retry succeeds. Existing root remained available. No new
-subjective vibration test or full reboot was performed. Standard non-opt-in paths
-were inspected in source, not exercised on device because their metadata writes
-are outside this update's safety scope.

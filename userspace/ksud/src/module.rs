@@ -829,56 +829,11 @@ pub fn run_action(id: &str) -> Result<()> {
     exec_script(&action_script_path, ScriptWait::Forever)
 }
 
-// Opt-in live controls for Galaxy XR memory-only modules. Do not regenerate
-// metadata/preinit files for these modules: they have no mount/boot integration.
-fn live_module_toggle(module_path: &Path, enable: bool) -> Result<bool> {
-    let props = read_module_prop(module_path)?;
-    if props.get("gxrLiveControl").map(String::as_str) != Some("1") {
-        return Ok(false);
-    }
-    let disable = module_path.join(defs::DISABLE_FILE_NAME);
-    let hook = module_path.join("live-control.sh");
-    let result = (|| -> Result<()> {
-        ensure!(
-            canonicalize(module_path)?.parent() == Some(Path::new(defs::MODULE_DIR)),
-            "Unexpected module path"
-        );
-        ensure!(
-            canonicalize(&hook)?.parent() == Some(module_path),
-            "Unexpected live control path"
-        );
-        if !enable {
-            ensure_file_exists(&disable)?;
-        }
-        let status = Command::new("/system/bin/timeout")
-            .args(["45", "/system/bin/sh"])
-            .arg(&hook)
-            .arg(if enable { "enable" } else { "disable" })
-            .status()
-            .context("Run module live control")?;
-        ensure!(status.success(), "Module live control failed: {status}");
-        ensure!(
-            !enable || !disable.exists(),
-            "Module disabled itself during activation"
-        );
-        Ok(())
-    })();
-    if result.is_err() {
-        ensure_file_exists(&disable)?;
-    }
-    result?;
-    Ok(true)
-}
-
 pub fn enable_module(id: &str) -> Result<()> {
     validate_module_id(id)?;
 
     let module_path = Path::new(defs::MODULE_DIR).join(id);
     ensure!(module_path.exists(), "Module {id} not found");
-
-    if live_module_toggle(&module_path, true)? {
-        return Ok(());
-    }
 
     let disable_path = module_path.join(defs::DISABLE_FILE_NAME);
     if disable_path.exists() {
@@ -896,13 +851,8 @@ pub fn enable_module(id: &str) -> Result<()> {
 }
 
 pub fn disable_module(id: &str) -> Result<()> {
-    validate_module_id(id)?;
     let module_path = Path::new(defs::MODULE_DIR).join(id);
     ensure!(module_path.exists(), "Module {id} not found");
-
-    if live_module_toggle(&module_path, false)? {
-        return Ok(());
-    }
 
     let disable_path = module_path.join(defs::DISABLE_FILE_NAME);
     ensure_file_exists(disable_path)?;

@@ -34,7 +34,12 @@ fn dump_process_info(label: &str) {
     );
 }
 
-pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool, soft_reboot: bool) -> Result<()> {
+pub fn run(
+    package_name: &String,
+    kmi: Option<String>,
+    allow_shell: bool,
+    soft_reboot: bool,
+) -> Result<()> {
     utils::daemonize(false)?;
     info!("late-load command triggered!");
     dump_process_info("late-load start");
@@ -80,7 +85,7 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool, soft_r
 
     utils::install(None, None).context("Failed to install ksud")?;
 
-    // This seciton previously ran module scripts, 
+    // This seciton previously ran module scripts,
     // but we don't care about modules in late-load
     // Modules will be loaded after soft reboot instead
     if !soft_reboot {
@@ -96,7 +101,6 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool, soft_r
             ])
             .status();
     }
-
 
     Ok(())
 }
