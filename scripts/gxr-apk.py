@@ -37,6 +37,16 @@ def verify_v2(data):
 def main():
     if sys.argv[1] == "prepare":
         root, ksud = map(Path, sys.argv[2:4])
+        version = sys.argv[4]
+        if not re.fullmatch(r"samsung-gxr-v[A-Za-z0-9][A-Za-z0-9._-]*", version):
+            raise ValueError("Expected a GXR release version")
+        metadata = root / "apktool.yml"
+        value, hits = re.subn(r"(?m)^(\s*versionName:) .*$",
+                             lambda match: f"{match[1]} '{version}'",
+                             metadata.read_text(encoding="utf-8"))
+        if hits != 1:
+            raise ValueError("Expected exactly one APK versionName")
+        metadata.write_text(value, encoding="utf-8")
         count = 0
         for path in root.glob("res/values*/strings.xml"):
             value, hits = re.subn(r'(<string name="app_name">)[^<]*(</string>)',
@@ -46,6 +56,15 @@ def main():
                 count += hits
         assert count, "Missing app_name resource"
         shutil.copy2(ksud, root / "lib/arm64-v8a/libksud.so")
+    elif sys.argv[1] == "verify-source":
+        apk, ksud = map(Path, sys.argv[2:4])
+        verify_v2(apk.read_bytes())
+        with zipfile.ZipFile(apk) as built:
+            assert built.testzip() is None
+            assert built.read("lib/arm64-v8a/libksud.so") == ksud.read_bytes()
+            assert all(name.startswith("lib/arm64-v8a/")
+                       for name in built.namelist() if name.startswith("lib/") and not name.endswith("/"))
+        print("PASS: v2-only signing block and source-built arm64 Manager with expected ksud")
     elif sys.argv[1] == "verify":
         apk, base, ksud = map(Path, sys.argv[2:5])
         verify_v2(apk.read_bytes())
@@ -57,7 +76,7 @@ def main():
                     assert original.read(name) == built.read(name), name
         print("PASS: v2-only signing block, embedded ksud and unchanged Manager DEX")
     else:
-        raise SystemExit("Use prepare DECODED_APK KSUD or verify APK BASE_APK KSUD")
+        raise SystemExit("Use prepare DECODED_APK KSUD GXR_VERSION or verify APK BASE_APK KSUD")
 
 
 if __name__ == "__main__":

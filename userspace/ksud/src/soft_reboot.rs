@@ -28,6 +28,10 @@ use crate::{
 
 const WAITSYS_FD_ENV: &str = "KSU_WAITSYS_FD";
 
+#[path = "soft_reboot_guard.rs"]
+mod guard;
+use guard::RestartGuard;
+
 struct Waitsys {
     child: Child,
     read_fd: OwnedFd,
@@ -154,12 +158,16 @@ fn set_rescue_party_boot_reason() {
     }
 }
 
-fn wait_for_boot_completed() -> Result<()> {
+fn wait_for_boot_completed(timeout: Duration) -> Result<()> {
     sys_prop::init().context("Failed to initialize system property API")?;
     let rp = resetprop();
     info!("waiting for boot complete");
-    rp.wait("sys.boot_completed", Some("0"), None)
-        .context("wait for sys.boot_completed failed")?;
+    ensure!(
+        rp.wait("sys.boot_completed", Some("0"), Some(timeout))
+            .context("wait for sys.boot_completed failed")?
+            && rp.get("sys.boot_completed").as_deref() == Some("1"),
+        "boot did not complete before the restart wake-lock deadline"
+    );
     Ok(())
 }
 
@@ -167,19 +175,54 @@ pub fn soft_reboot() -> Result<()> {
     // check it avoid user click "soft_reboot" in manager when version mismatch
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip soft_reboot");
-        return Ok(());
+        return Err(e);
     }
 
+    let mut restart_guard = None;
     utils::daemonize_with(true, || -> Result<()> {
         switch_mnt_ns(1)?;
         chdir("/")?;
+        // The intermediate child validates this before acknowledging success
+        // to Manager. The final daemon inherits both guards; parents use _exit.
+        restart_guard =
+            Some(RestartGuard::acquire().context("soft restart safety preflight failed")?);
         Ok(())
     })?;
 
-    info!("emulating soft_reboot!");
-    if let Err(e) = reset_boot_completed() {
-        warn!("reset boot completed failed: {e}");
+    let mut restart_guard = restart_guard.context("restart guard was not inherited")?;
+    info!("restart wake lock acquired; maximum lifetime 180 seconds");
+    let began = Instant::now();
+    let result = perform_soft_reboot(&restart_guard);
+    let release_result = restart_guard
+        .release()
+        .context("restart wake-lock release failed; kernel timeout remains armed");
+    if let Err(error) = &release_result {
+        warn!("{error:#}");
     }
+    // _exit bypasses destructors; release and close the transaction explicitly.
+    drop(restart_guard);
+    let code = match result.and(release_result) {
+        Ok(()) => {
+            info!(
+                "soft restart complete in {} ms; wake lock released",
+                began.elapsed().as_millis()
+            );
+            0
+        }
+        Err(error) => {
+            error!(
+                "soft restart failed after {} ms: {error:#}",
+                began.elapsed().as_millis()
+            );
+            1
+        }
+    };
+    unsafe { _exit(code) }
+}
+
+fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
+    info!("emulating soft_reboot!");
+    reset_boot_completed()?;
     run_stage(
         "emulated-soft-reboot",
         ScriptWait::Until(Instant::now() + defs::EMULATED_SOFT_REBOOT_TIMEOUT),
@@ -218,21 +261,17 @@ pub fn soft_reboot() -> Result<()> {
     terminate_waitsys(&mut waitsys);
 
     info!("post-fs-data");
-    on_post_fs_data()?;
+    // Even if module setup fails, attempt the standard start before returning
+    // the error. Do not leave Android stopped because of a setup error.
+    let setup_result = on_post_fs_data();
     set_rescue_party_boot_reason();
     info!("start");
     let status = Command::new("start").status().context("start failed")?;
-    if !status.success() {
-        warn!("start exited with status: {status}");
-    }
+    ensure!(status.success(), "start exited with status: {status}");
+    setup_result?;
     info!("services");
     on_services();
-    if let Err(e) = wait_for_boot_completed() {
-        warn!("wait for boot completed failed: {e}");
-    }
+    wait_for_boot_completed(restart_guard.remaining())?;
     on_boot_completed();
-
-    unsafe {
-        _exit(0);
-    }
+    Ok(())
 }

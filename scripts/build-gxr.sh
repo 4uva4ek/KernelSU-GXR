@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# Linux/WSL2 build using the tested Samsung source and upstream Manager DEX.
+# Linux/WSL2 build using the GXR Manager and userspace source.
 set -euo pipefail
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo"
+GXR_VERSION_NAME=${GXR_VERSION_NAME:-$(git describe --tags --match 'gxr-*' --always)}
+case "$GXR_VERSION_NAME" in
+    samsung-gxr-v*) ;;
+    gxr-v*) GXR_VERSION_NAME="samsung-$GXR_VERSION_NAME" ;;
+    gxr-*) GXR_VERSION_NAME="samsung-gxr-v${GXR_VERSION_NAME#gxr-}" ;;
+    *) GXR_VERSION_NAME="samsung-gxr-vdev-$GXR_VERSION_NAME" ;;
+esac
+[[ "$GXR_VERSION_NAME" =~ ^samsung-gxr-v[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo 'Invalid GXR version' >&2; exit 1; }
 : "${ANDROID_NDK_HOME:?Set Android NDK r29 path}"
 : "${ANDROID_HOME:?Set Android SDK path}"
-: "${GXR_BASE_APK:?Set original samsung-v1.0 APK path}"
-: "${GXR_APKTOOL:?Set Apktool 3.0.3 jar path}"
 : "${GXR_KEYSTORE:?Set persistent signing keystore path}"
 : "${GXR_STORE_PASS:?Set keystore password}"
 : "${GXR_KEY_PASS:?Set key password}"
 : "${GXR_KEY_ALIAS:?Set key alias}"
 export GXR_STORE_PASS GXR_KEY_PASS
-bt="$ANDROID_HOME/build-tools/${GXR_BUILD_TOOLS:-36.0.0}"
+bt="$ANDROID_HOME/build-tools/${GXR_BUILD_TOOLS:-37.0.0}"
 out="$repo/out/gxr"
 mkdir -p "$out"
 out=$(realpath "$out")
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
-printf '%s  %s\n' c92f56c6569bfede6a37fdfa209e248c6a8f73b77214e51a3658ac2fec5dcf1e "$GXR_BASE_APK" | sha256sum -c -
 keytool -exportcert -alias "$GXR_KEY_ALIAS" -keystore "$GXR_KEYSTORE" \
     -storepass:env GXR_STORE_PASS -file "$work/cert.der"
 cert_size=$(stat -c %s "$work/cert.der")
@@ -39,9 +45,13 @@ cp "$CARGO_TARGET_DIR/aarch64-linux-android/release/ksuinit" userspace/ksud/bin/
 cargo clean --package ksud --target aarch64-linux-android --release
 cargo build --locked --package ksud --target aarch64-linux-android --release
 ksud="$CARGO_TARGET_DIR/aarch64-linux-android/release/ksud"
-java -jar "$GXR_APKTOOL" d -s "$GXR_BASE_APK" -o "$work/manager"
-python3 scripts/gxr-apk.py prepare "$work/manager" "$ksud"
-java -jar "$GXR_APKTOOL" b "$work/manager" -o "$work/unsigned.apk"
+mkdir -p manager/app/src/main/jniLibs/arm64-v8a
+cp "$ksud" manager/app/src/main/jniLibs/arm64-v8a/libksud.so
+(cd manager && bash gradlew clean assembleRelease \
+    -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false "-PKSU_VERSION_NAME=$GXR_VERSION_NAME")
+mapfile -t manager_apks < <(find manager/app/build/intermediates/apk/release -maxdepth 1 -name '*.apk')
+[[ ${#manager_apks[@]} == 1 ]]
+cp "${manager_apks[0]}" "$work/unsigned.apk"
 "$bt/zipalign" -f -P 16 4 "$work/unsigned.apk" "$work/aligned.apk"
 apk="$out/KernelSU-GXR_no-DEFEX.apk"
 "$bt/apksigner" sign --ks "$GXR_KEYSTORE" --ks-key-alias "$GXR_KEY_ALIAS" \
@@ -51,9 +61,11 @@ apk="$out/KernelSU-GXR_no-DEFEX.apk"
     --out "$apk" "$work/aligned.apk"
 "$bt/apksigner" verify --verbose --print-certs "$apk"
 "$bt/zipalign" -c -P 16 4 "$apk"
-python3 scripts/gxr-apk.py verify "$apk" "$GXR_BASE_APK" "$ksud"
+"$(dirname "$CLANG_PATH")/llvm-strip" --strip-unneeded "$ksud" -o "$work/ksud-stripped"
+python3 scripts/gxr-apk.py verify-source "$apk" "$work/ksud-stripped"
 "$bt/aapt2" dump badging "$apk" > "$out/apk-badging.txt"
 grep -Fx "application-label:'KernelSU GXR'" "$out/apk-badging.txt"
+grep -F "versionName='$GXR_VERSION_NAME'" "$out/apk-badging.txt"
 cp out/xrvst2/android12-5.10_kernelsu.ko "$out/"
 cp "$ksud" "$out/ksud"
 cd "$out"

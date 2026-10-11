@@ -26,6 +26,9 @@
     <string name="module_install">Установить</string>
     <string name="install">Установка</string>
     <string name="reboot">Перезагрузить</string>
+    <string name="reboot_request_starting">Запускается перезагрузка…</string>
+    <string name="reboot_request_accepted">Запрос принят. Дождитесь завершения перезапуска Android.</string>
+    <string name="reboot_request_failed">Не удалось запустить перезагрузку. Проверьте root-доступ и журнал KernelSU перед повторной попыткой.</string>
     <string name="settings">Настройки</string>
     <string name="reboot_userspace">Мягкая перезагрузка</string>
     <string name="reboot_recovery">Перезагрузить в Recovery</string>

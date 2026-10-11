@@ -1,0 +1,19 @@
+[package]
+name = "soft-reboot-guard-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# The guard is platform-independent Linux file handling; test it on the host
+# without linking the rest of ksud's Android-only dependencies.
+[workspace]
+
+[lib]
+path = "../../../userspace/ksud/src/soft_reboot_guard.rs"
+
+[dependencies]
+libc = "0.2"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

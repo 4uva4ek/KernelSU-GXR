@@ -35,24 +35,19 @@ been validated. This is not a full kernel or boot image replacement.
 
 Required: Docker, Git, Python 3, JDK 21, Rust stable with the
 `aarch64-linux-android` target, libclang, Android NDK r29, Android SDK build-tools
-36.0.0 and Apktool 3.0.3. Use an LF checkout on the Linux filesystem and a full
+37.0.0, platform android-37.0 and CMake 3.22.1. Use an LF checkout on the Linux filesystem and a full
 Git history. The DDK image is pinned by digest in `scripts/build-gxr.sh`.
 
-The tested build preserves the original Manager DEX and repackages its resources
-with the label **KernelSU GXR**, plus freshly compiled ksuinit, ksud and the module.
-It avoids the unavailable SDK 37 required by the upstream Manager source build.
-Obtain `KernelSU_samsung-v1.0_32664-release.apk` from
-<https://github.com/diabl0w/KernelSU/releases/tag/samsung-v1.0>.
-Its SHA256 is checked before use:
-`c92f56c6569bfede6a37fdfa209e248c6a8f73b77214e51a3658ac2fec5dcf1e`.
+The build compiles the GXR Manager from source with the label **KernelSU GXR**,
+plus ksuinit, ksud and the module. This preserves the GXR soft-restart UI fixes
+and gives both the home and About screens the GXR release version.
 
 Create and retain your own RSA signing keystore outside the repository. Set:
 
 ```bash
 export ANDROID_HOME=/path/to/android-sdk
 export ANDROID_NDK_HOME=/path/to/android-ndk-r29
-export GXR_BASE_APK=/path/to/KernelSU_samsung-v1.0_32664-release.apk
-export GXR_APKTOOL=/path/to/apktool_3.0.3.jar
+export GXR_VERSION_NAME=gxr-v1.0.1
 export GXR_KEYSTORE=/private/path/gxr.jks
 export GXR_KEY_ALIAS=gxr
 read -rs -p 'Keystore password: ' GXR_STORE_PASS; echo
@@ -64,7 +59,7 @@ bash scripts/build-gxr.sh
 The script exports the certificate and builds its size/hash into the module as
 `EXPECTED_SIZE2`/`EXPECTED_HASH2`; signature authentication remains enabled.
 It builds the module and userspace, signs v2-only, verifies APK signatures,
-alignment, name, embedded ksud and unchanged Manager DEX. Outputs and SHA256 sums
+alignment, name, version and embedded ksud. Outputs and SHA256 sums
 are under `out/gxr/`. No signing keys or headset logs are included in this fork.
 
 ## Installation
@@ -77,11 +72,20 @@ Use DFRoot to load the module; do not flash this APK as a boot image.
 ## Automatic GXR releases
 
 The `KernelSU GXR release` workflow builds this profile only. Push a `gxr-*`
-tag from the `galaxyxr` branch to build and publish a prerelease with the APK,
+tag from the `galaxyxr` branch to build and publish a release with the APK,
 module, ksud, build metadata and checksums. A manual Actions run builds the
 same files as an artifact when `release_tag` is empty. To publish from the
 Actions UI, enter a new `gxr-*` version in `release_tag`; the tag and release
 are created only after the build and checks succeed.
+
+The application label is `KernelSU GXR`. APK `versionName` uses
+`samsung-gxr-v<release version>` (tag `gxr-v1.0.0` becomes
+`samsung-gxr-v1.0.0`), including tags supplied through the
+Actions UI. Local repacks can set `GXR_VERSION_NAME`; source Manager builds
+can set `-PKSU_VERSION_NAME=gxr-v1.0.0`. Without an override, builds use the
+nearest `gxr-*` tag or `samsung-gxr-vdev-<commit>` when no GXR tag is available.
+Direct Gradle builds default to the release version and Android version code
+in `manager/gradle.properties`; bump both when preparing a new release.
 
 Configure repository Actions secrets `GXR_KEYSTORE_BASE64`, `GXR_STORE_PASS`,
 `GXR_KEY_PASS` and `GXR_KEY_ALIAS` using the retained signing key. Missing

@@ -30,7 +30,7 @@ which the successful reference test was performed.
 ## Scope of automated releases
 
 CI builds this GXR profile and checks the module, APK signature scheme,
-alignment, embedded ksud and preserved Manager DEX. A successful CI build
+alignment, embedded ksud and the source-built Manager. A successful CI build
 does **not** mean that its exact APK has been tested on a headset. The table
 above describes the specific local APK tested on the reference device.
 Each generated package includes `BUILD-INFO.txt` with its source commit and
@@ -38,3 +38,17 @@ workflow run, and `SHA256SUMS.txt` for the compiled files.
 
 Use [DFRoot](https://github.com/diabl0w/DFRoot) to load the module.
 Do not flash the APK as a boot image.
+
+## GXR 1.0.1
+
+The Manager version is `samsung-gxr-v1.0.1` (Android version code 32666).
+Soft-restart requests run off the UI thread and report submission failures.
+The daemon serializes restart requests and acquires a kernel-expiring,
+180-second suspend blocker before stopping Android. Standard module startup
+and the Action button are retained; no live-checkbox extension is included.
+
+The preceding `gxr-1.0.1-test1` build passed native checks, five guard tests
+and a clean Manager release build. The owner tested it on the reference
+headset and reported the Manager working well. Version 1.0.1 retains that
+daemon and kernel payload; it updates Manager branding and release metadata.
+This report does not establish module health or authorize a soft reboot.

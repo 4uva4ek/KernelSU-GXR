@@ -16,7 +16,9 @@ add_library(kernelsu
         ksu.cc
         )
 
-target_include_directories(kernelsu PRIVATE .)
+# The repository root also resolves uapi/ in Windows checkouts where Git's
+# cpp/uapi symlink may be checked out as a plain text file.
+target_include_directories(kernelsu PRIVATE . "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../")
 
 find_library(log-lib log)
 

@@ -486,17 +486,16 @@ private fun readMagic(channel: DataSourceChannel): String {
     return String(buffer.array(), StandardCharsets.ISO_8859_1)
 }
 
-fun reboot(reason: String = "") {
+internal fun executeReboot(reason: String): Boolean {
     if (reason == "soft_reboot") {
-        execKsud("soft-reboot", true, true)
-        return
+        return execKsud("soft-reboot", true, true)
     }
     val shell = getRootShell()
     if (reason == "recovery") {
         // KEYCODE_POWER = 26, hide incorrect "Factory data reset" message
         ShellUtils.fastCmd(shell, "/system/bin/input keyevent 26")
     }
-    ShellUtils.fastCmd(shell, "/system/bin/svc power reboot $reason || /system/bin/reboot $reason")
+    return ShellUtils.fastCmdResult(shell, "/system/bin/svc power reboot $reason || /system/bin/reboot $reason")
 }
 
 fun rootAvailable(): Boolean {
