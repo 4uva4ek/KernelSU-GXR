@@ -47,7 +47,7 @@ Create and retain your own RSA signing keystore outside the repository. Set:
 ```bash
 export ANDROID_HOME=/path/to/android-sdk
 export ANDROID_NDK_HOME=/path/to/android-ndk-r29
-export GXR_VERSION_NAME=gxr-v1.0.3
+export GXR_VERSION_NAME=gxr-v1.0.6
 export GXR_KEYSTORE=/private/path/gxr.jks
 export GXR_KEY_ALIAS=gxr
 read -rs -p 'Keystore password: ' GXR_STORE_PASS; echo

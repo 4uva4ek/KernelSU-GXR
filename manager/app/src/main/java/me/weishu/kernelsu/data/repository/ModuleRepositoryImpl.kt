@@ -8,6 +8,7 @@ import me.weishu.kernelsu.ksuApp
 import me.weishu.kernelsu.ui.util.isNetworkAvailable
 import me.weishu.kernelsu.ui.util.listModules
 import me.weishu.kernelsu.ui.util.module.sanitizeVersionString
+import me.weishu.kernelsu.ui.util.module.ModuleSourceRegistry
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,11 +53,12 @@ class ModuleRepositoryImpl : ModuleRepository {
             if (!isNetworkAvailable(ksuApp)) {
                 return@runCatching ModuleUpdateInfo.Empty
             }
-            if (module.updateJson.isEmpty() || module.remove || module.update || !module.enabled) {
+            val feed = module.updateJson.takeIf { it.isNotBlank() } ?: ModuleSourceRegistry.feed(module.id)
+            if (feed == null || module.remove || module.update) {
                 return@runCatching ModuleUpdateInfo.Empty
             }
 
-            val url = module.updateJson
+            val url = feed
             val response = ksuApp.okhttpClient.newCall(
                 Request.Builder().url(url).build()
             ).execute()

@@ -822,7 +822,8 @@ private fun ModuleItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val hasUpdate = updateUrl.isNotEmpty()
-                val actionButtonsEnabled = !module.remove && module.enabled
+                val actionButtonsEnabled = !module.remove && !module.update &&
+                    (module.enabled || module.id.startsWith("gxr_"))
 
                 AnimatedVisibility(
                     visible = actionButtonsEnabled,
@@ -861,7 +862,7 @@ private fun ModuleItem(
                             }
                         }
 
-                        if (module.hasWebUi) {
+                        if (module.hasWebUi && module.enabled) {
                             CombinedClickableButton(
                                 onClick = {
                                     onOpenWebUi()

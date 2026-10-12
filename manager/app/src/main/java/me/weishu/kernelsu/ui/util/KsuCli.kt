@@ -29,6 +29,7 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipFile
 
 /**
  * @author weishu
@@ -205,18 +206,26 @@ fun flashModule(
     onStderr: (String) -> Unit
 ): FlashResult {
     val resolver = ksuApp.contentResolver
-    with(resolver.openInputStream(uri)) {
-        val file = File(ksuApp.cacheDir, "module.zip")
+    val file = File.createTempFile("module-", ".zip", ksuApp.cacheDir)
+    try {
+        val input = resolver.openInputStream(uri) ?: error("Cannot open module ZIP")
         file.outputStream().use { output ->
-            this?.copyTo(output)
+            input.use { it.copyTo(output) }
         }
-        val cmd = "module install ${file.absolutePath}"
+        val gxr = ZipFile(file).use { zip ->
+            val prop = zip.getEntry("module.prop") ?: error("Missing module.prop")
+            require(prop.size in 1..16384) { "Invalid module.prop size" }
+            zip.getInputStream(prop).bufferedReader().use { reader ->
+                reader.lineSequence().any { it.startsWith("id=gxr_") }
+            }
+        }
+        val cmd = "module install '${file.absolutePath}'"
         val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
         Log.i("KernelSU", "install module $uri result: $result")
-
+        // GXR updates finish disabled; a restart is never the next automatic step.
+        return FlashResult(result, result.isSuccess && !gxr)
+    } finally {
         file.delete()
-
-        return FlashResult(result)
     }
 }
 

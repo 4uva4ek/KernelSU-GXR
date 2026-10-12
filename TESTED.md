@@ -1,5 +1,49 @@
 # KernelSU GXR: tested configuration
 
+## GXR 1.0.6: sources, disabled updates and themes
+
+Manager version `samsung-gxr-v1.0.6`, code `32672`. See
+[release changes and validation limits](docs/RELEASE-1.0.6.md). Module discovery
+and legacy feed lookup are driven by configured GitHub catalogues, without a
+compiled list of supported module IDs. Host regressions cover discovery,
+installation and replacement of twelve previously unknown IDs. Material controls
+in Miuix now inherit the selected light/dark/accent palette.
+
+Android checks/lints, native host suites and Manager tests passed. Live module
+replacement through this updater has not been validated on the headset. The
+preceding preview was installed with unchanged module preferences/kernel boot;
+that is installation evidence, not a runtime activation test. Version-specific
+APK hashes and installation evidence are included with the release assets.
+
+## Local candidate: GXR 1.0.5
+
+Manager `samsung-gxr-v1.0.5`, code `32670`, was installed and tested in one
+user-authorized soft restart. APK SHA-256:
+`ba5757f8e6abe10d2163d47e93cca1ca040f45b5591bf862340f99896a1483c2`.
+Embedded/deployed daemon:
+`55222b770cbeb7dcaaed8d359e9f6efda02628dc111cba96306400466372716c`.
+This candidate has not been published.
+
+The logger Steam Link process, which had OpenXR loaded, was force-stopped at
+02:06:28.950 on 2026-10-12. The verified empty runtime-client list was logged
+at 02:06:29.101, before Android stop at 02:06:29.269. Android completed its
+restart in 27.508 seconds. Root remained available and kernel boot ID stayed
+`eef1a7a9-d6ce-46a6-bc27-ed28214d3efa`. Haptics, Whitening and Timestamp were
+verified active afterward. The ordinary Steam Link was also launched before
+the restart, but remained in its non-OpenXR menu and was not an app-close target.
+
+Velocity was already inactive before this test: its checkbox was ON, but its
+worker had failed after a prior application task removal within 30 seconds.
+Its existing same-boot supervisor quarantine and `auto.pending` were preserved.
+The new test therefore does not establish active Velocity's health through
+the planned app exit. It does establish app shutdown order and Android recovery.
+
+Android check/clippy with warnings denied/fmt, nine new OpenXR shutdown tests,
+the existing service/restart/wake-lock suites, and ten module lifecycle tests
+passed. ARM64 Manager build, v2 signature, certificate continuity, 16 KiB ZIP
+alignment and exact embedded/deployed daemon verification passed. Kernel payload
+is unchanged. No cold boot, tracking-motion validation or public release was done.
+
 ## Current release: GXR 1.0.4
 
 Manager `samsung-gxr-v1.0.4`, code `32669`. The exact signed release APK

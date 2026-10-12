@@ -17,6 +17,8 @@ replaced: controller modules started successfully. Cold-boot persistence and
 long-term stability have not been verified. See the versioned evidence below.
 
 - [Exact tested firmware, kernel and APK](TESTED.md)
+- [1.0.6: GitHub sources, module updates and theme fixes](docs/RELEASE-1.0.6.md)
+- [Module package contract, installation and recovery](docs/MODULE-UPDATES.md)
 - [1.0.4 changes and validation](docs/RELEASE-1.0.4.md)
 - [Coordinated restart API for module authors](docs/COORDINATED-RESTART.md)
 - [GXR build instructions and investigation](GALAXYXR.md)

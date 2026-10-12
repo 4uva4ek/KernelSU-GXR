@@ -24,6 +24,8 @@ mod defs;
 #[cfg(target_os = "android")]
 mod feature;
 #[cfg(target_os = "android")]
+mod gxr_update;
+#[cfg(target_os = "android")]
 mod init_event;
 #[cfg(target_os = "android")]
 mod ksucalls;

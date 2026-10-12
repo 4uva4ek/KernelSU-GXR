@@ -283,6 +283,8 @@ class ModuleViewModel(
     suspend fun syncModuleUpdateInfo(modules: List<Module>) {
         if (!_uiState.value.checkModuleUpdate) return
 
+        me.weishu.kernelsu.ui.util.module.ModuleSourceRegistry.refresh()
+
         val modulesToFetch = mutableListOf<Triple<String, Module, ModuleUpdateSignature>>()
         val removedIds = mutableSetOf<String>()
 
@@ -295,10 +297,10 @@ class ModuleViewModel(
             }
 
             modules.forEach { module ->
-                val signature = module.toSignature()
-                val cached = updateInfoCache[module.id]
-                if ((cached == null || cached.signature != signature) && updateInfoInFlight.add(module.id)) {
-                    modulesToFetch += Triple(module.id, module, signature)
+                // An explicit list refresh must recheck the remote release even
+                // when local version and checkbox state have not changed.
+                if (updateInfoInFlight.add(module.id)) {
+                    modulesToFetch += Triple(module.id, module, module.toSignature())
                 }
             }
         }
@@ -473,6 +475,12 @@ class ModuleViewModel(
                     }
                 }
             }
+        }
+
+        if (module.id.startsWith("gxr_")) {
+            changelog = "The current module will be stopped and restored before replacement. " +
+                "The update stays DISABLED. Enable it separately when intended; no automatic restart.\n\n" + changelog
+            html = false
         }
 
         return ModuleConfirmDialogState(

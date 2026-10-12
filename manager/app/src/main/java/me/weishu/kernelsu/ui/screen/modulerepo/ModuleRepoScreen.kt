@@ -1,6 +1,12 @@
 package me.weishu.kernelsu.ui.screen.modulerepo
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +25,7 @@ import me.weishu.kernelsu.ui.screen.flash.FlashIt
 import me.weishu.kernelsu.ui.util.module.fetchModuleDetail
 import me.weishu.kernelsu.ui.viewmodel.ModuleRepoViewModel
 import me.weishu.kernelsu.ui.viewmodel.ModuleViewModel
+import me.weishu.kernelsu.ui.viewmodel.ModuleSourcesViewModel
 
 @Composable
 fun ModuleRepoScreen() {
@@ -27,6 +34,15 @@ fun ModuleRepoScreen() {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val installedVm = viewModel<ModuleViewModel>()
     val installedUiState by installedVm.uiState.collectAsStateWithLifecycle()
+    val sourcesVm = viewModel<ModuleSourcesViewModel>()
+    val sourcesState by sourcesVm.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(sourcesVm) {
+        sourcesVm.refresh()
+        sourcesVm.install.collect { uris ->
+            navigator.push(Route.Flash(FlashIt.FlashModules(uris)))
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (uiState.modules.isEmpty()) {
@@ -58,9 +74,22 @@ fun ModuleRepoScreen() {
         },
     )
 
-    when (LocalUiMode.current) {
-        UiMode.Miuix -> ModuleRepoScreenMiuix(uiState, actions)
-        UiMode.Material -> ModuleRepoScreenMaterial(uiState, actions)
+    Surface(Modifier.fillMaxSize()) {
+      Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        ModuleSourcePicker(sourcesState, sourcesVm)
+        Box(Modifier.weight(1f)) {
+            if (sourcesState.active == "official") {
+                when (LocalUiMode.current) {
+                    UiMode.Miuix -> ModuleRepoScreenMiuix(uiState, actions)
+                    UiMode.Material -> ModuleRepoScreenMaterial(uiState, actions)
+                }
+            } else {
+                ModuleSourcesPanel(sourcesState, sourcesVm,
+                    installedUiState.moduleList.associate { it.id to it.versionCode },
+                    onBack = { navigator.pop() })
+            }
+        }
+      }
     }
 }
 

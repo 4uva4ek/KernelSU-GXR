@@ -892,7 +892,7 @@ fun ModuleItem(
 
         Row {
             AnimatedVisibility(
-                visible = module.enabled && !module.remove && !module.update,
+                visible = (module.enabled || module.id.startsWith("gxr_")) && !module.remove && !module.update,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -932,7 +932,7 @@ fun ModuleItem(
                             }
                         }
                     }
-                    if (module.hasWebUi) {
+                    if (module.hasWebUi && module.enabled) {
                         Row(
                             modifier = Modifier
                                 .heightIn(min = 35.dp)

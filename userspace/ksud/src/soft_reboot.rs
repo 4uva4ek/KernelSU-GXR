@@ -32,6 +32,9 @@ const WAITSYS_FD_ENV: &str = "KSU_WAITSYS_FD";
 mod guard;
 use guard::RestartGuard;
 
+#[path = "openxr_apps.rs"]
+mod openxr_apps;
+
 struct Waitsys {
     child: Child,
     read_fd: OwnedFd,
@@ -172,6 +175,7 @@ fn wait_for_boot_completed(timeout: Duration) -> Result<()> {
 }
 
 pub fn soft_reboot() -> Result<()> {
+    let _module_control = crate::gxr_update::control_lock()?;
     // check it avoid user click "soft_reboot" in manager when version mismatch
     if let Err(e) = ksucalls::ensure_uapi_version_matched() {
         error!("{e:#}, skip soft_reboot");
@@ -233,11 +237,25 @@ fn perform_soft_reboot(restart_guard: &RestartGuard) -> Result<()> {
         let _ = crate::restart_stage::run(&participants, "abort", deadline);
         return Err(error);
     }
-    reset_boot_completed()?;
-    run_stage(
-        "emulated-soft-reboot",
-        ScriptWait::Until(Instant::now() + defs::EMULATED_SOFT_REBOOT_TIMEOUT),
-    )?;
+    let app_shutdown = (|| -> Result<()> {
+        reset_boot_completed()?;
+        run_stage(
+            "emulated-soft-reboot",
+            ScriptWait::Until(Instant::now() + defs::EMULATED_SOFT_REBOOT_TIMEOUT),
+        )?;
+        // Workers are paused and notified before apps are deliberately closed.
+        // Android/PackageManager must remain alive until force-stop is verified.
+        openxr_apps::close_before_restart(deadline)
+    })();
+    if let Err(error) = app_shutdown {
+        // Android has not been stopped: restore its ready flag and unwind any
+        // prepared participants. Existing module failure guards stay intact.
+        let ready = resetprop().set("sys.boot_completed", "1");
+        let abort = crate::restart_stage::run(&participants, "abort", deadline);
+        return Err(error.context(format!(
+            "restart cancelled before Android stop; ready restoration={ready:?}; participant abort={abort:?}"
+        )));
+    }
 
     let mut waitsys = match Waitsys::spawn() {
         Ok(waitsys) => Some(waitsys),

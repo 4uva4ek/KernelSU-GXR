@@ -55,11 +55,34 @@ transaction does not dispatch ordinary services or silently retry itself.
 
 ## Order and cold boot
 
-The order is: participant preflight; standard emulated-soft-reboot notifications;
+The order is: participant preflight; reset boot-completed and send standard
+emulated-soft-reboot notifications; close verified OpenXR application clients;
 Android stop; standard post-fs-data setup; stopped hooks; one Android start;
 boot-completed wait; started hooks; ordinary service and boot-completed scripts.
 The kernel, ksuinit, firmware, original system files and partition protections
 are not changed by this feature.
+
+GXR 1.0.5 closes running third-party application packages with executable mappings
+of `/system/lib[64]/libopenxr_android.so`. PackageManager supplies package/UID and
+system-package inventories for all users. System UIDs (including shared UIDs),
+native service/helper executables, and ambiguous shared-UID ownership are never
+force-stopped. Main/private app processes and uniquely owned custom app process
+names are supported. Both original and renamed Steam Link copies are discovered
+by runtime use, without a package-name allowlist.
+
+After the modules have been notified, the coordinator acquires the existing
+`/dev/gxr_openxr_transaction` directory lock so in-flight Velocity/Extrapolation
+operations finish before app shutdown. It runs `cmd activity force-stop --user
+<id> <package>` and rescans the processes before issuing Android `stop`. Shutdown
+and its commands share a 20-second limit within the overall restart deadline.
+Errors/timeouts cancel before Android stop, restore `sys.boot_completed=1`, and
+run participant abort hooks. A stopped package can be opened again normally;
+its data is not cleared. No application is automatically relaunched.
+
+This does not clear an existing module failure/pending guard or change checkbox
+preferences. The planned-restart notification only helps an already running
+worker recognize the deliberate application exits. This runtime list is a
+verified snapshot immediately before stop, not a ban on future app launches.
 
 A native cold-boot service callback with enabled participants enters this same
 coordinator before ordinary service scripts. With no participants the standard

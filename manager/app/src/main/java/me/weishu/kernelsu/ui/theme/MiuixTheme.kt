@@ -4,6 +4,8 @@ import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -77,10 +79,43 @@ fun MiuixKernelSUTheme(
                 }
             }
             MonetColorsProvider.UpdateCss()
+            // Shared Material controls (sources, menus and dialogs) must follow
+            // the active Miuix palette instead of Material's default light theme.
+            val colors = MiuixTheme.colorScheme
+            val materialColors = rememberKernelSUColorScheme(
+                seedColor = resolvedKeyColor ?: colors.primary,
+                isDark = darkTheme,
+                isAmoled = appSettings.colorMode.isAmoled,
+                paletteStyle = appSettings.paletteStyle,
+                colorSpec = appSettings.colorSpec,
+            ).copy(
+                primary = colors.primary,
+                onPrimary = colors.onPrimary,
+                primaryContainer = colors.primaryContainer,
+                onPrimaryContainer = colors.onPrimaryContainer,
+                background = colors.background,
+                onBackground = colors.onBackground,
+                surface = colors.surface,
+                onSurface = colors.onSurface,
+                surfaceContainerLowest = colors.background,
+                surfaceContainerLow = colors.surfaceContainer,
+                surfaceContainer = colors.surfaceContainer,
+                surfaceContainerHigh = colors.surfaceContainer,
+                surfaceContainerHighest = colors.surfaceContainer,
+                surfaceVariant = colors.secondaryContainer,
+                onSurfaceVariant = colors.onSurfaceVariantSummary,
+                outline = colors.outline,
+            ).amoledBackground(appSettings.colorMode.isAmoled)
             CompositionLocalProvider(
                 LocalContentColor provides MiuixTheme.colorScheme.onBackground,
+                androidx.compose.material3.LocalContentColor provides materialColors.onBackground,
             ) {
-                content()
+                MaterialExpressiveTheme(
+                    colorScheme = materialColors,
+                    motionScheme = MotionScheme.expressive(),
+                    typography = Typography,
+                    content = content,
+                )
             }
         }
     )

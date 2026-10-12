@@ -532,6 +532,20 @@ pub fn run() -> Result<()> {
 
         Commands::Module { command } => {
             utils::switch_mnt_ns(1)?;
+            let changes_gxr = match &command {
+                Module::Install { .. } => true,
+                Module::Enable { id }
+                | Module::Disable { id }
+                | Module::Uninstall { id }
+                | Module::UndoUninstall { id }
+                | Module::Action { id } => id.starts_with("gxr_"),
+                _ => false,
+            };
+            let _control = if changes_gxr {
+                Some(crate::gxr_update::control_lock()?)
+            } else {
+                None
+            };
             match command {
                 Module::Install { zip } => module::install_module(&zip),
                 Module::UndoUninstall { id } => module::undo_uninstall_module(&id),

@@ -792,6 +792,11 @@ fn install_module_to_system(zip: &str) -> Result<()> {
 pub fn install_module(zip: &str) -> Result<()> {
     ksucalls::ensure_uapi_version_matched()?;
 
+    // The reviewed GXR path never runs installer.sh or regenerates preinit.
+    if crate::gxr_update::try_install(zip)? {
+        return Ok(());
+    }
+
     let result = install_module_to_system(zip);
     if let Err(ref e) = result {
         println!("- Error: {e}");
