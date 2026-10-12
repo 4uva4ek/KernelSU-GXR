@@ -13,10 +13,15 @@ only after the release SHA-256, the package name, the installed Manager's signin
 certificates and an increasing version code all match. Releases ship a versioned
 APK, `manager-update.json` and a `SHA256SUMS.txt` covering both.
 
-Validation so far: Manager `assembleRelease` and ksud `clippy -D warnings`/arm64
-build pass locally; a unit test covers the install-notes bounds. Pending at
-publication: the installer log in the flash screen, a live self-update to the
-next release, and unchanged module behaviour on the headset.
+Validation: Manager `assembleRelease` and ksud `clippy -D warnings`/arm64 build
+pass locally; a unit test covers the install-notes bounds. The CI artifact of
+2c868d2 (retained certificate, SHA-256 verified) was installed on the headset
+and read back; the kernel boot ID and every module preference were unchanged,
+and the daemon reported `gxr-v1.0.6-1-g2c868d2a` after the first launch. The
+new installer log was exercised with an already-installed package: banner,
+package identity, verified-file count and route line printed, then the
+version-must-increase refusal before any change. A live self-update to a newer
+release and the full log of a successful installation are pending.
 
 ## GXR 1.0.6: sources, disabled updates and themes
 

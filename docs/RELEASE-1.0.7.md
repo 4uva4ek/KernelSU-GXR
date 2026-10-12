@@ -39,7 +39,9 @@ description. See [package contract and recovery](MODULE-UPDATES.md).
 ## Validation limits
 
 Kotlin and ksud compile locally; the installer-notes unit test covers bounds and
-control characters. Live checks pending at publication: the installer log in the
-Manager's flash screen, a self-update from this version to the next release, and
-unchanged module behaviour. Installation of a Manager build on the headset and
-module activation remain separate user decisions.
+control characters. The CI build of the release sources was installed on the
+headset with the kernel boot ID and all module preferences unchanged, and the
+installer log was exercised up to the version-must-increase refusal. A live
+self-update from this version to the next release and the full log of a
+successful installation are still pending. Module activation remains a separate
+user decision.
