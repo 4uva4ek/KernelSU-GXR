@@ -13,6 +13,84 @@ use std::{
 
 const LIMIT: u64 = 64 * 1024 * 1024;
 type Payload = BTreeMap<String, Vec<u8>>;
+/// Optional plain-text notes a package may ship for the installer log. The file is
+/// printed line by line and never executed or interpreted.
+const INFO_FILE: &str = "install-info.txt";
+const INFO_MAX_BYTES: usize = 4096;
+const INFO_MAX_LINES: usize = 32;
+const INFO_MAX_LINE: usize = 160;
+
+/// Validate the optional install notes: bounded UTF-8 text, printable characters only.
+fn install_notes(files: &Payload) -> Result<Vec<String>> {
+    let Some(bytes) = files.get(INFO_FILE) else {
+        return Ok(Vec::new());
+    };
+    ensure!(bytes.len() <= INFO_MAX_BYTES, "{INFO_FILE} is too large");
+    let text = std::str::from_utf8(bytes).context("install-info.txt is not UTF-8")?;
+    let mut lines = Vec::new();
+    for line in text.lines() {
+        let line = line.trim_end();
+        ensure!(
+            line.chars().count() <= INFO_MAX_LINE,
+            "{INFO_FILE} line too long"
+        );
+        ensure!(
+            line.chars().all(|c| !c.is_control()),
+            "{INFO_FILE} contains control characters"
+        );
+        lines.push(line.to_owned());
+    }
+    ensure!(
+        lines.len() <= INFO_MAX_LINES,
+        "{INFO_FILE} has too many lines"
+    );
+    while lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    Ok(lines)
+}
+
+/// Wrap the module description for the installer log when no notes are shipped.
+fn wrap(text: &str, width: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        if !line.is_empty() && line.chars().count() + 1 + word.chars().count() > width {
+            out.push(std::mem::take(&mut line));
+        }
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(word);
+    }
+    if !line.is_empty() {
+        out.push(line);
+    }
+    out
+}
+
+fn print_notes(files: &Payload, properties: &BTreeMap<String, String>) {
+    let notes = install_notes(files).unwrap_or_default();
+    let lines = if notes.is_empty() {
+        properties
+            .get("description")
+            .map(|d| wrap(d, 72))
+            .unwrap_or_default()
+    } else {
+        notes
+    };
+    if lines.is_empty() {
+        return;
+    }
+    println!("- About this module:");
+    for line in lines {
+        if line.is_empty() {
+            println!("   ");
+        } else {
+            println!("    {line}");
+        }
+    }
+}
 
 fn valid_gxr_id(id: &str) -> bool {
     id.starts_with("gxr_") && id.len() > 4 && !id.contains('/') && safe_name(id)
@@ -138,6 +216,7 @@ fn validate_payload(files: &Payload) -> Result<BTreeMap<String, String>> {
         files.contains_key("action.sh") && files.contains_key("service.sh"),
         "Missing lifecycle scripts"
     );
+    install_notes(files)?;
     Ok(properties)
 }
 
@@ -331,12 +410,24 @@ pub fn try_install(zip: &str) -> Result<bool> {
         crate::utils::getprop("sys.boot_completed").as_deref() == Some("1"),
         "Android is restarting"
     );
+    println!(include_str!("banner"));
     let files = read_archive(Path::new(zip))?;
     let properties = validate_payload(&files)?;
     ensure!(
         properties.get("id") == Some(id),
         "ZIP changed during inspection"
     );
+    println!(
+        "- GXR package: {} {} (id {id}, versionCode {})",
+        properties.get("name").map_or(id.as_str(), String::as_str),
+        properties.get("version").map_or("?", String::as_str),
+        properties.get("versionCode").map_or("?", String::as_str)
+    );
+    println!(
+        "- Verified {} files; every SHA-256 checksum matches",
+        files.len()
+    );
+    println!("- Reviewed GXR route: package install scripts are not executed");
     install_at(
         &files,
         &properties,
@@ -407,9 +498,15 @@ fn install_at(
     // Keep the entire old tree as an inert backup. Preserve guard/config files
     // in the new tree, but drop all previous package-owned files before overlay.
     if exists {
+        let old = verify_installed(&live)?;
+        println!(
+            "- Installed {} found: disabling and restoring the original code",
+            old.get("version").map_or("version", String::as_str)
+        );
         File::create(live.join("disable"))?.sync_all()?;
         sync_dir(&live)?;
         stop(&live)?;
+        println!("- Previous version stopped; restoration verified");
         regular_tree(&live, 0, &mut 0)?;
         copy_tree(&live, &stage)?;
         for name in checksums(&fs::read(live.join("SHA256SUMS"))?)?.keys() {
@@ -436,6 +533,7 @@ fn install_at(
     verify_installed(&stage)?;
     sync_tree(&stage)?;
     sync_dir(&transaction)?;
+    println!("- Installing DISABLED into {}", live.display());
     if exists {
         fs::rename(&live, transaction.join("old"))?;
         sync_dir(modules)?;
@@ -451,13 +549,18 @@ fn install_at(
     }
     sync_dir(modules)?;
     sync_dir(&transaction)?;
+    if exists {
+        println!(
+            "- Previous version kept as backup: {}",
+            transaction.join("old").display()
+        );
+    }
+    print_notes(files, properties);
     println!(
-        "DISABLED - Installed {id}. Backup/transaction: {}",
-        transaction.display()
+        "- State: DISABLED. Enable: tick the module checkbox, then use the documented soft restart"
     );
-    println!(
-        "Enable separately when intended, then use the documented soft restart. Action reports runtime status."
-    );
+    println!("- Action reports live status and recovery steps");
+    println!("- Module installed successfully!");
     Ok(())
 }
 
@@ -660,6 +763,23 @@ mod tests {
         assert!(!restored_report(
             "DISABLED - External or unowned whitening patch is ACTIVE\n"
         ));
+    }
+    #[test]
+    fn install_notes_are_optional_bounded_and_printable() {
+        let mut files = package(1);
+        assert!(install_notes(&files).unwrap().is_empty());
+        files.insert(
+            INFO_FILE.into(),
+            b"Routes haptics to the grip motor.\n\nEnable with the checkbox.\n\n".to_vec(),
+        );
+        assert_eq!(install_notes(&files).unwrap().len(), 3);
+        files.insert(INFO_FILE.into(), b"bad \x1b[31mcolor".to_vec());
+        assert!(install_notes(&files).is_err());
+        files.insert(INFO_FILE.into(), vec![b'a'; INFO_MAX_BYTES + 1]);
+        assert!(install_notes(&files).is_err());
+        files.insert(INFO_FILE.into(), vec![b'\n'; INFO_MAX_LINES + 1]);
+        assert!(install_notes(&files).is_err());
+        assert_eq!(wrap("one two three", 7), vec!["one two", "three"]);
     }
     #[test]
     fn unsafe_archive_paths_rejected() {

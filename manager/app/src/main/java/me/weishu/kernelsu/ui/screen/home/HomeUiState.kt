@@ -60,4 +60,5 @@ data class HomeActions(
     val onInstallClick: () -> Unit,
     val onOpenUrl: (String) -> Unit,
     val onJailbreakClick: () -> Unit = {},
+    val onInstallManagerUpdate: (me.weishu.kernelsu.ui.util.module.LatestVersionInfo) -> Unit = {},
 )

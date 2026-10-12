@@ -1,5 +1,23 @@
 # KernelSU GXR: tested configuration
 
+## GXR 1.0.7: installer log and Manager self-update
+
+Manager version `samsung-gxr-v1.0.7`. See [release changes and validation
+limits](docs/RELEASE-1.0.7.md). The reviewed GXR package route now prints an
+installer log in the standard KernelSU style (banner, package identity, verified
+files, stop/restore of the previous version, DISABLED install path, backup, an
+"About this module" block from the optional bounded `install-info.txt` or the
+module description, enable/Action instructions). The home screen checks the
+latest `4uva4ek/KernelSU-GXR` release and, on the user's tap, installs the APK
+only after the release SHA-256, the package name, the installed Manager's signing
+certificates and an increasing version code all match. Releases ship a versioned
+APK, `manager-update.json` and a `SHA256SUMS.txt` covering both.
+
+Validation so far: Manager `assembleRelease` and ksud `clippy -D warnings`/arm64
+build pass locally; a unit test covers the install-notes bounds. Pending at
+publication: the installer log in the flash screen, a live self-update to the
+next release, and unchanged module behaviour on the headset.
+
 ## GXR 1.0.6: sources, disabled updates and themes
 
 Manager version `samsung-gxr-v1.0.6`, code `32672`. See

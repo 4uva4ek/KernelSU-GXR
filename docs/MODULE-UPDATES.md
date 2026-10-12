@@ -48,6 +48,16 @@ For GXR packages, the new path:
   extra guard/config files, syncs files/directories, retains the old directory,
   and renames the new disabled directory into place.
 
+The installer prints a log in the same style as the standard KernelSU installer:
+the KernelSU banner, the package name/version/ID, the number of verified files,
+whether an installed version was stopped and restored, where the replacement
+was installed DISABLED, the backup location, an "About this module" block and
+the enable/Action instructions. The about block comes from an optional
+`install-info.txt` in the ZIP root (UTF-8, at most 4 KiB, 32 lines, 160
+characters per line, no control characters; a malformed file rejects the
+package). Packages without it show the `module.prop` description. The text is
+only printed, never executed or interpreted.
+
 Neither `customize.sh`, package install scripts, metamodule installers, preinit
 regeneration nor boot/root configuration is executed by this GXR install path.
 It does not execute newly downloaded code. Checksums are integrity checks, not a

@@ -53,7 +53,8 @@ mapfile -t manager_apks < <(find manager/app/build/intermediates/apk/release -ma
 [[ ${#manager_apks[@]} == 1 ]]
 cp "${manager_apks[0]}" "$work/unsigned.apk"
 "$bt/zipalign" -f -P 16 4 "$work/unsigned.apk" "$work/aligned.apk"
-apk="$out/KernelSU-GXR_no-DEFEX.apk"
+apk_name="KernelSU-GXR-$GXR_VERSION_NAME.apk"
+apk="$out/$apk_name"
 "$bt/apksigner" sign --ks "$GXR_KEYSTORE" --ks-key-alias "$GXR_KEY_ALIAS" \
     --ks-pass env:GXR_STORE_PASS --key-pass env:GXR_KEY_PASS \
     --v1-signing-enabled false --v2-signing-enabled true \
@@ -69,5 +70,17 @@ grep -F "versionName='$GXR_VERSION_NAME'" "$out/apk-badging.txt"
 cp out/xrvst2/android12-5.10_kernelsu.ko "$out/"
 cp "$ksud" "$out/ksud"
 cd "$out"
-sha256sum KernelSU-GXR_no-DEFEX.apk android12-5.10_kernelsu.ko ksud > SHA256SUMS.txt
+version_code=$(grep -o "versionCode='[0-9]*'" apk-badging.txt | grep -o '[0-9]*')
+[[ -n "$version_code" ]]
+# Read by the Manager's self-update: nothing is installed unless this manifest, the
+# APK's SHA-256 and the retained signing certificate agree with the download.
+printf '{
+  "versionCode": %s,
+  "versionName": "%s",
+  "apk": "%s",
+  "sha256": "%s",
+  "certSha256": "%s"
+}
+'     "$version_code" "$GXR_VERSION_NAME" "$apk_name" "$(sha256sum "$apk_name" | cut -d ' ' -f 1)" "$cert_hash" > manager-update.json
+sha256sum "$apk_name" android12-5.10_kernelsu.ko ksud manager-update.json > SHA256SUMS.txt
 echo "Built: $apk"

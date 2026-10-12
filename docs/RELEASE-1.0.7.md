@@ -1,0 +1,45 @@
+# KernelSU GXR 1.0.7
+
+Manager version `samsung-gxr-v1.0.7`; the Android version code is recorded in
+the release's `manager-update.json` and `BUILD-INFO.txt`.
+
+## Manager self-update
+
+The home screen checks the latest published release of
+`4uva4ek/KernelSU-GXR` (drafts and prereleases are ignored) when "Check for
+updates" is enabled, which is the default. A newer version shows the usual
+update card with the release notes. Tapping **Update** downloads the release
+APK and installs it only after all of the following hold:
+
+* the APK's SHA-256 equals the value in the release `manager-update.json`
+  (older releases: `SHA256SUMS.txt`);
+* the APK package name is this Manager and every signing certificate equals the
+  installed Manager's certificates (and the manifest's `certSha256`, when given);
+* the version code increases.
+
+Installation runs through root (`pm install -r --user 0`) from a world-readable
+staging copy under `/data/local/tmp`, which is removed afterwards. The Manager
+process is replaced by the installation and must be reopened. Nothing is
+downloaded or installed without the user's tap; there is no background install.
+
+Releases now ship `KernelSU-GXR-<version>.apk`, `manager-update.json`
+(`versionCode`, `versionName`, `apk`, `sha256`, `certSha256`) and a
+`SHA256SUMS.txt` that covers both. `scripts/build-gxr.sh` writes them.
+
+## GXR module installer log
+
+The reviewed GXR package route prints an installer log like the standard
+KernelSU installer: banner, package identity, verified file count, stop and
+restoration of an installed version, the DISABLED installation path, the backup
+location, an "About this module" block and the enable/Action instructions. The
+about block is the optional `install-info.txt` from the package root (bounded,
+printable text that is printed and never executed), otherwise the `module.prop`
+description. See [package contract and recovery](MODULE-UPDATES.md).
+
+## Validation limits
+
+Kotlin and ksud compile locally; the installer-notes unit test covers bounds and
+control characters. Live checks pending at publication: the installer log in the
+Manager's flash screen, a self-update from this version to the next release, and
+unchanged module behaviour. Installation of a Manager build on the headset and
+module activation remain separate user decisions.

@@ -117,6 +117,9 @@
     <string name="module_start_downloading">Start downloading: %s</string>
     <string name="module_action_success">Module action executed successfully.</string>
     <string name="new_version_available">New version %s is available, click to upgrade!</string>
+    <string name="manager_update_downloading">Downloading KernelSU GXR %s…</string>
+    <string name="manager_update_installing">Verified. Installing the Manager update; the app will restart.</string>
+    <string name="manager_update_failed">Manager update not installed: %s</string>
     <string name="launch_app">Launch</string>
     <string name="force_stop_app">Force stop</string>
     <string name="restart_app">Restart</string>

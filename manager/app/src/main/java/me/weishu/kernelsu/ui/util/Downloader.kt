@@ -44,43 +44,56 @@ internal suspend fun isDownloadAvailable(uri: Uri): Boolean = withContext(Dispat
     }.getOrDefault(false)
 }
 
+private const val GXR_LATEST_RELEASE =
+    "https://api.github.com/repos/4uva4ek/KernelSU-GXR/releases/latest"
+
+/**
+ * Latest published GXR Manager release. Releases ship `manager-update.json`
+ * (versionCode, versionName, apk, sha256, certSha256); older releases are read
+ * from `BUILD-INFO.txt` and `SHA256SUMS.txt`. Drafts and prereleases are ignored.
+ */
 fun checkNewVersion(): LatestVersionInfo {
-    if (!isNetworkAvailable(ksuApp)) return LatestVersionInfo()
-    val url = "https://api.github.com/repos/tiann/KernelSU/releases/latest"
-    // default null value if failed
-    val defaultValue = LatestVersionInfo()
-    runCatching {
-        ksuApp.okhttpClient.newCall(Request.Builder().url(url).build()).execute()
-            .use { response ->
-                if (!response.isSuccessful) {
-                    return defaultValue
-                }
-                val body = response.body.string()
-                val json = org.json.JSONObject(body)
-                val changelog = json.optString("body")
+    val none = LatestVersionInfo()
+    if (!isNetworkAvailable(ksuApp)) return none
+    return runCatching {
+        val release = org.json.JSONObject(fetchText(GXR_LATEST_RELEASE) ?: return none)
+        if (release.optBoolean("draft") || release.optBoolean("prerelease")) return none
+        val changelog = release.optString("body")
+        val assets = release.getJSONArray("assets")
+        val urls = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .associate { it.getString("name") to it.getString("browser_download_url") }
 
-                val assets = json.getJSONArray("assets")
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.getString("name")
-                    if (!name.endsWith(".apk")) {
-                        continue
-                    }
-
-                    val regex = Regex("v(.+?)_(\\d+)-")
-                    val matchResult = regex.find(name) ?: continue
-                    matchResult.groupValues[1]
-                    val versionCode = matchResult.groupValues[2].toInt()
-                    val downloadUrl = asset.getString("browser_download_url")
-
-                    return LatestVersionInfo(
-                        versionCode,
-                        downloadUrl,
-                        changelog
-                    )
-                }
-
+        var versionCode = 0
+        var versionName = ""
+        var apk = ""
+        var sha256 = ""
+        var cert = ""
+        val manifest = urls["manager-update.json"]?.let { fetchText(it) }?.let { org.json.JSONObject(it) }
+        if (manifest != null) {
+            versionCode = manifest.optInt("versionCode")
+            versionName = manifest.optString("versionName")
+            apk = manifest.optString("apk")
+            sha256 = manifest.optString("sha256")
+            cert = manifest.optString("certSha256")
+        } else {
+            val info = urls["BUILD-INFO.txt"]?.let { fetchText(it) } ?: ""
+            Regex("""Manager:\s*(\S+)\s*\((\d+)\)""").find(info)?.let {
+                versionName = it.groupValues[1]
+                versionCode = it.groupValues[2].toInt()
             }
-    }
-    return defaultValue
+            Regex("""Certificate SHA256:\s*([0-9a-fA-F]{64})""").find(info)?.let { cert = it.groupValues[1] }
+            apk = urls.keys.firstOrNull { it.endsWith(".apk") } ?: ""
+            val sums = urls["SHA256SUMS.txt"]?.let { fetchText(it) } ?: ""
+            sha256 = sums.lines().map { it.trim() }
+                .firstOrNull { it.endsWith("  $apk") }?.substringBefore(' ') ?: ""
+        }
+        val downloadUrl = urls[apk] ?: return none
+        if (versionCode <= 0) return none
+        LatestVersionInfo(versionCode, downloadUrl, changelog, versionName, apk, sha256, cert)
+    }.getOrDefault(none)
 }
+
+private fun fetchText(url: String): String? =
+    ksuApp.okhttpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
+        if (response.isSuccessful) response.body.string() else null
+    }

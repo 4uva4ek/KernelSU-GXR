@@ -27,6 +27,7 @@ import me.weishu.kernelsu.ui.UiMode
 import me.weishu.kernelsu.ui.component.dialog.rememberLoadingDialog
 import me.weishu.kernelsu.ui.navigation3.Navigator
 import me.weishu.kernelsu.ui.navigation3.Route
+import me.weishu.kernelsu.ui.util.installManagerUpdate
 import me.weishu.kernelsu.ui.viewmodel.HomeViewModel
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -64,6 +65,21 @@ fun HomePager(
     val actions = HomeActions(
         onInstallClick = { navigator.push(Route.Install) },
         onOpenUrl = uriHandler::openUri,
+        onInstallManagerUpdate = { info ->
+            scope.launch {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.manager_update_downloading, info.versionName),
+                    Toast.LENGTH_SHORT
+                ).show()
+                val result = installManagerUpdate(info)
+                val message = result.fold(
+                    onSuccess = { context.getString(R.string.manager_update_installing) },
+                    onFailure = { context.getString(R.string.manager_update_failed, it.message ?: "") }
+                )
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        },
         onJailbreakClick = {
             loadingDialog.showLoading()
             context.startService(Intent(context, MagicaService::class.java))
