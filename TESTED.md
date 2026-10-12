@@ -1,9 +1,11 @@
 # KernelSU GXR: tested configuration
 
-## GXR 1.0.7: installer log and Manager self-update
+## GXR 1.0.8: installer log and Manager self-update
 
-Manager version `samsung-gxr-v1.0.7`. See [release changes and validation
-limits](docs/RELEASE-1.0.7.md). The reviewed GXR package route now prints an
+Manager version `samsung-gxr-v1.0.8`, code `32673` (1.0.7 shipped the 1.0.6
+code 32672 because `KSU_VERSION_CODE` is pinned in `manager/gradle.properties`;
+bump it for every release). See [release changes and validation
+limits](docs/RELEASE-1.0.8.md). The reviewed GXR package route now prints an
 installer log in the standard KernelSU style (banner, package identity, verified
 files, stop/restore of the previous version, DISABLED install path, backup, an
 "About this module" block from the optional bounded `install-info.txt` or the
