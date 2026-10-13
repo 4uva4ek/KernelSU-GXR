@@ -177,7 +177,7 @@ fn validate_payload(files: &Payload) -> Result<BTreeMap<String, String>> {
     for name in files.keys() {
         ensure!(safe_name(name), "Unsafe payload path");
         ensure!(
-            !name.contains('/') || name.starts_with("bin/"),
+            !name.contains('/') || name.starts_with("bin/") || name.starts_with("webroot/"),
             "Unexpected payload directory"
         );
         ensure!(
@@ -600,13 +600,78 @@ mod tests {
             ("service.sh".into(), b"exit 99\n".to_vec()),
             ("customize.sh".into(), b"exit 99\n".to_vec()),
         ]);
+        update_checksums(&mut files);
+        files
+    }
+    fn update_checksums(files: &mut Payload) {
         let sums = files
             .iter()
-            .filter(|(n, _)| n.as_str() != "disable")
+            .filter(|(n, _)| !matches!(n.as_str(), "disable" | "SHA256SUMS"))
             .map(|(n, b)| format!("{}  {n}\n", sha256::digest(b)))
             .collect::<String>();
         files.insert("SHA256SUMS".into(), sums.into_bytes());
-        files
+    }
+    #[test]
+    fn webui_installs_and_updates_disabled_with_verified_assets() {
+        let root = tempfile::tempdir().unwrap();
+        let live = root.path().join("modules").join(ID);
+        for code in [1, 2] {
+            let mut files = package(code);
+            files.insert(
+                "webroot/index.html".into(),
+                format!("page {code}").into_bytes(),
+            );
+            files.insert("webroot/assets/app.js".into(), b"// UI only\n".to_vec());
+            update_checksums(&mut files);
+            let props = validate_payload(&files).unwrap();
+            install_at(
+                &files,
+                &props,
+                &root.path().join("modules"),
+                &root.path().join("pending"),
+                &root.path().join("backups"),
+                |old| {
+                    assert!(old.join("disable").exists());
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert!(live.join("disable").is_file());
+            assert_eq!(
+                fs::read(live.join("webroot/index.html")).unwrap(),
+                files["webroot/index.html"]
+            );
+            assert_eq!(
+                fs::read(live.join("webroot/assets/app.js")).unwrap(),
+                files["webroot/assets/app.js"]
+            );
+            verify_installed(&live).unwrap();
+            fs::remove_file(live.join("disable")).unwrap();
+        }
+    }
+    #[test]
+    fn webui_does_not_bypass_paths_or_checksums() {
+        for name in [
+            "webroot/../service.sh",
+            "webroot//index.html",
+            "webroot2/index.html",
+            "system/webroot/index.html",
+            "/webroot/index.html",
+            "webroot/./index.html",
+            "webroot\\index.html",
+        ] {
+            let mut files = package(1);
+            files.insert(name.into(), b"invalid".to_vec());
+            update_checksums(&mut files);
+            assert!(validate_payload(&files).is_err(), "{name}");
+        }
+        let mut files = package(1);
+        files.insert("webroot/index.html".into(), b"verified".to_vec());
+        assert!(validate_payload(&files).is_err());
+        update_checksums(&mut files);
+        assert!(validate_payload(&files).is_ok());
+        files.get_mut("webroot/index.html").unwrap().push(0);
+        assert!(validate_payload(&files).is_err());
     }
     fn install(root: &Path, code: i32, stop: impl FnOnce(&Path) -> Result<()>) -> Result<()> {
         let files = package(code);

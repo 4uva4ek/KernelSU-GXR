@@ -35,6 +35,11 @@ GXR replacements stay disabled and do not show the normal reboot shortcut.
 installer. Eligibility depends on archive contents and the lifecycle contract,
 not a list of public names. Ordinary modules retain their existing installer.
 
+Regular payload files may be in the ZIP root, `bin/`, or (since Manager 1.0.9)
+`webroot/`, including nested WebUI assets. Every asset must be listed in
+`SHA256SUMS`; traversal, symlinks and other unsupported entries remain rejected.
+WebUI assets are copied without being executed by the installer.
+
 For GXR packages, the new path:
 
 * validates bounded ZIP entries, regular files, identity, all payload checksums,

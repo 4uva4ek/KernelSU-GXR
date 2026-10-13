@@ -14,7 +14,7 @@ repositories are involved; each has its own numbering and its own feed.
 | Records | `TESTED.md` (new section on top) and `docs/RELEASE-X.Y.Z.md` | Describe what changed and what was and was not validated. Link the new release notes from `README.md`. |
 
 Current code: see `KSU_VERSION_CODE` in `manager/gradle.properties`
-(32673 = 1.0.8). Next release: 32674, and so on. Never reuse a code.
+(32674 = 1.0.9). Next release: 32675, and so on. Never reuse a code.
 
 ### Release steps
 

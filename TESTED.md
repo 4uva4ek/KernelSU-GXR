@@ -1,5 +1,19 @@
 # KernelSU GXR: tested configuration
 
+## GXR 1.0.9: WebUI module installation
+
+Manager `samsung-gxr-v1.0.9`, code `32674`. The reviewed installer accepts
+checksummed `webroot/` assets, fixing `Unexpected payload directory` for
+Steam Link Pose Time 0.1.7. Checksums, safe paths, disabled replacement and
+old-patch restoration remain enforced. See [release notes and validation
+limits](docs/RELEASE-1.0.9.md). No module activation or restart is part of this
+release. The signed APK and increasing update manifest are built by release CI.
+
+Validation: Android arm64 check, clippy with warnings denied and formatting
+passed; 13 host regressions and the actual eight-module CI ZIP set passed.
+Live module replacement and WebUI interaction were not exercised on the headset.
+
+
 ## GXR 1.0.8: installer log and Manager self-update
 
 Manager version `samsung-gxr-v1.0.8`, code `32673` (1.0.7 shipped the 1.0.6
