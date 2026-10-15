@@ -526,10 +526,18 @@ mod tests {
 
     #[test]
     fn only_vanished_process_errors_are_ignored() {
-        assert!(process_gone(&io::Error::from_raw_os_error(libc::ESRCH).into()));
-        assert!(process_gone(&io::Error::from_raw_os_error(libc::ENOENT).into()));
-        assert!(!process_gone(&io::Error::from_raw_os_error(libc::EACCES).into()));
-        assert!(!process_gone(&io::Error::from(io::ErrorKind::InvalidData).into()));
+        assert!(process_gone(
+            &io::Error::from_raw_os_error(libc::ESRCH).into()
+        ));
+        assert!(process_gone(
+            &io::Error::from_raw_os_error(libc::ENOENT).into()
+        ));
+        assert!(!process_gone(
+            &io::Error::from_raw_os_error(libc::EACCES).into()
+        ));
+        assert!(!process_gone(
+            &io::Error::from(io::ErrorKind::InvalidData).into()
+        ));
     }
 
     #[test]
