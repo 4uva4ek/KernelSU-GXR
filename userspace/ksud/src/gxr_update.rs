@@ -356,6 +356,8 @@ fn restored_report(text: &str) -> bool {
             || line == "WAITING: target not running; no live patch"
             || line == "WAITING: no third-party main app process has OpenXR loaded"
             || line == "DISABLED - Waiting: controller service is absent; no live target"
+            || line
+                == "DISABLED - No module-owned live changes; checkbox ON requires standard KernelSU startup."
         {
             verified = true;
         }
@@ -391,7 +393,7 @@ fn sync_tree(path: &Path) -> Result<()> {
 
 /// Return false for ordinary modules. GXR packages use this path regardless of
 /// their ID or repository; incompatible payloads never fall through to installer scripts.
-pub fn try_install(zip: &str) -> Result<bool> {
+pub fn try_install(zip: &str, approved: &[String], approved_disable: &[String]) -> Result<bool> {
     // Inspect only module.prop before deciding the route, to leave ordinary ZIPs
     // (including directory entries) on their existing installer path.
     let mut archive = zip::ZipArchive::new(File::open(zip)?)?;
@@ -428,22 +430,238 @@ pub fn try_install(zip: &str) -> Result<bool> {
         files.len()
     );
     println!("- Reviewed GXR route: package install scripts are not executed");
-    install_at(
-        &files,
-        &properties,
-        Path::new("/data/adb/modules"),
-        Path::new("/data/adb/modules_update"),
-        Path::new("/data/adb/gxr-updates"),
-        |old| {
-            run_action(old, "off")?;
-            ensure!(
-                restored_report(&run_action(old, "status")?),
-                "Live restoration not verified; old module retained DISABLED"
-            );
-            Ok(())
-        },
-    )?;
+    ensure_not_superseded(id, Path::new("/data/adb/modules"))?;
+    let declared = replacement_ids(&properties)?;
+    let disabled = dependency_ids(&properties, "gxrRequiresDisabled")?;
+    ensure!(
+        !declared.iter().any(|id| disabled.contains(id)),
+        "A dependency cannot require both removal and disabling"
+    );
+    let modules = Path::new("/data/adb/modules");
+    preflight_target(&properties, modules, Path::new("/data/adb/modules_update"))?;
+    let conflicts: Vec<String> = declared
+        .into_iter()
+        .filter(|old| modules.join(old).symlink_metadata().is_ok())
+        .collect();
+    validate_consent(&conflicts, approved)?;
+    let disable_conflicts: Vec<String> = disabled
+        .into_iter()
+        .filter(|old| modules.join(old).symlink_metadata().is_ok())
+        .collect();
+    validate_consent(&disable_conflicts, approved_disable)?;
+    // Validate every old package before disabling any. Stop dependents before
+    // their providers; the package metadata records that order.
+    for old in conflicts.iter().chain(&disable_conflicts) {
+        let path = modules.join(old);
+        let installed = verify_installed(&path)?;
+        ensure!(
+            installed.get("id") == Some(old),
+            "Installed replacement identity mismatch"
+        );
+        ensure!(
+            !Path::new("/data/adb/modules_update").join(old).exists(),
+            "Resolve staged update for {old} first"
+        );
+    }
+    for old in conflicts.iter().chain(&disable_conflicts) {
+        let path = modules.join(old);
+        File::create(path.join("disable"))?.sync_all()?;
+        run_action(&path, "off")?;
+        ensure!(
+            restored_report(&run_action(&path, "status")?),
+            "Restoration of {old} is unverified; migration stopped"
+        );
+    }
+    let backups = Path::new("/data/adb/gxr-updates");
+    fs::create_dir_all(backups)?;
+    ensure!(
+        backups.symlink_metadata()?.is_dir(),
+        "Unsafe migration backup root"
+    );
+    let migration = tempfile::Builder::new()
+        .prefix("migration-")
+        .tempdir_in(backups)?
+        .keep();
+    fs::write(migration.join("replacements.txt"), conflicts.join("\n"))?;
+    sync_dir(&migration)?;
+    migrate_directories(modules, &migration, &conflicts, || {
+        install_at(
+            &files,
+            &properties,
+            Path::new("/data/adb/modules"),
+            Path::new("/data/adb/modules_update"),
+            Path::new("/data/adb/gxr-updates"),
+            |old| {
+                run_action(old, "off")?;
+                ensure!(
+                    restored_report(&run_action(old, "status")?),
+                    "Live restoration not verified; old module retained DISABLED"
+                );
+                Ok(())
+            },
+        )
+    })?;
+    if !conflicts.is_empty() {
+        println!("- Superseded modules removed: {}", conflicts.join(", "));
+    }
     Ok(true)
+}
+
+/// Move only already-restored modules. On an install/rename error, restore all
+/// moved directories in reverse order; their disable markers are preserved.
+fn migrate_directories(
+    modules: &Path,
+    migration: &Path,
+    conflicts: &[String],
+    install: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    let mut moved = Vec::new();
+    let result = (|| -> Result<()> {
+        for old in conflicts {
+            fs::rename(modules.join(old), migration.join(old))?;
+            moved.push(old.clone());
+            sync_dir(modules)?;
+            sync_dir(migration)?;
+        }
+        install()
+    })();
+    if let Err(error) = result {
+        for old in moved.iter().rev() {
+            ensure!(
+                !modules.join(old).exists(),
+                "Cannot restore migration backup for {old}: destination exists"
+            );
+            fs::rename(migration.join(old), modules.join(old))?;
+        }
+        sync_dir(modules)?;
+        sync_dir(migration)?;
+        return Err(error.context("Migration failed; previous modules restored disabled"));
+    }
+    // Rollback copies are needed only until the replacement has committed.
+    // This directory was created by this transaction outside the module root.
+    if let Err(error) = fs::remove_dir_all(migration) {
+        eprintln!(
+            "- Warning: installation succeeded, but migration backup cleanup failed at {}: {error}",
+            migration.display()
+        );
+    } else if let Some(parent) = migration.parent() {
+        sync_dir(parent)?;
+    }
+    Ok(())
+}
+
+fn replacement_ids(properties: &BTreeMap<String, String>) -> Result<Vec<String>> {
+    dependency_ids(properties, "gxrReplaces")
+}
+
+fn dependency_ids(properties: &BTreeMap<String, String>, key: &str) -> Result<Vec<String>> {
+    let Some(value) = properties.get(key) else {
+        return Ok(Vec::new());
+    };
+    let own = properties.get("id").context("Missing module ID")?;
+    let ids: Vec<String> = value.split(',').map(str::to_owned).collect();
+    ensure!(
+        !ids.is_empty() && ids.len() <= 16,
+        "Invalid replacement count"
+    );
+    let mut seen = std::collections::BTreeSet::new();
+    for id in &ids {
+        ensure!(
+            valid_gxr_id(id) && id != own && seen.insert(id),
+            "Invalid or duplicate replacement ID"
+        );
+    }
+    Ok(ids)
+}
+
+fn validate_consent(conflicts: &[String], approved: &[String]) -> Result<()> {
+    let want: std::collections::BTreeSet<_> = conflicts.iter().collect();
+    let got: std::collections::BTreeSet<_> = approved.iter().collect();
+    ensure!(
+        got.len() == approved.len() && want == got,
+        "Dependency consent required for exactly: {}. Review the requested actions in Manager before retrying",
+        conflicts.join(",")
+    );
+    Ok(())
+}
+
+pub fn ensure_not_superseded(id: &str, modules: &Path) -> Result<()> {
+    if !id.starts_with("gxr_") || !modules.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(modules)? {
+        let entry = entry?;
+        if !entry.file_name().to_string_lossy().starts_with("gxr_") {
+            continue;
+        }
+        if !entry.file_type()?.is_dir() || entry.path().join("remove").exists() {
+            continue;
+        }
+        let path = entry.path().join("module.prop");
+        let Ok(data) = fs::read(path) else {
+            continue;
+        };
+        let p = props(&data)?;
+        let replaced = replacement_ids(&p)?.iter().any(|old| old == id);
+        let must_be_disabled = dependency_ids(&p, "gxrRequiresDisabled")?
+            .iter()
+            .any(|old| old == id);
+        if replaced || must_be_disabled {
+            bail!(
+                "Module {id} conflicts with conditions declared by {}; resolve that module first",
+                p.get("id").map_or("an installed module", String::as_str)
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn prepare_uninstall(id: &str) -> Result<()> {
+    if !id.starts_with("gxr_") {
+        return Ok(());
+    }
+    let path = Path::new("/data/adb/modules").join(id);
+    let p = verify_installed(&path)?;
+    ensure!(
+        p.get("id").is_some_and(|value| value == id),
+        "Installed identity mismatch"
+    );
+    File::create(path.join("disable"))?.sync_all()?;
+    run_action(&path, "off")?;
+    ensure!(
+        restored_report(&run_action(&path, "status")?),
+        "Cannot remove {id}: live restoration is unverified"
+    );
+    Ok(())
+}
+
+fn preflight_target(
+    properties: &BTreeMap<String, String>,
+    modules: &Path,
+    pending: &Path,
+) -> Result<bool> {
+    let id = properties.get("id").context("Missing ID")?;
+    let live = modules.join(id);
+    ensure!(
+        pending.join(id).symlink_metadata().is_err(),
+        "A staged update already exists"
+    );
+    let exists = live.symlink_metadata().is_ok();
+    if exists {
+        let old = verify_installed(&live)?;
+        ensure!(old.get("id") == Some(id), "Installed identity mismatch");
+        ensure!(
+            version_code(properties)? > version_code(&old)?,
+            "Version must increase; no downgrade/reinstall"
+        );
+        for marker in ["remove", "update"] {
+            ensure!(
+                !live.join(marker).exists(),
+                "Resolve pending module changes first"
+            );
+        }
+    }
+    Ok(exists)
 }
 
 fn install_at(
@@ -469,25 +687,7 @@ fn install_at(
         ensure!(pending.symlink_metadata()?.is_dir(), "Unsafe pending root");
     }
     let live = modules.join(id);
-    ensure!(
-        pending.join(id).symlink_metadata().is_err(),
-        "A staged update already exists"
-    );
-    let exists = live.symlink_metadata().is_ok();
-    if exists {
-        let old = verify_installed(&live)?;
-        ensure!(old.get("id") == Some(id), "Installed identity mismatch");
-        ensure!(
-            version_code(properties)? > version_code(&old)?,
-            "Version must increase; no downgrade/reinstall"
-        );
-        for marker in ["remove", "update"] {
-            ensure!(
-                !live.join(marker).exists(),
-                "Resolve pending module changes first"
-            );
-        }
-    }
+    let exists = preflight_target(properties, modules, pending)?;
     let transaction = tempfile::Builder::new()
         .prefix(&format!("{id}-"))
         .tempdir_in(backups)?
@@ -568,6 +768,127 @@ fn install_at(
 mod tests {
     use super::*;
     const ID: &str = "gxr_haptic_main";
+    #[test]
+    fn replacements_require_exact_explicit_consent() {
+        let conflicts = vec![
+            "gxr_steamlink_pose_time".into(),
+            "gxr_openxr_velocity_frame".into(),
+        ];
+        assert!(validate_consent(&conflicts, &[]).is_err());
+        assert!(validate_consent(&conflicts, &conflicts[..1]).is_err());
+        assert!(validate_consent(&conflicts, &conflicts).is_ok());
+        let mut extra = conflicts.clone();
+        extra.push("gxr_haptic_main".into());
+        assert!(validate_consent(&conflicts, &extra).is_err());
+        assert!(validate_consent(&[], &extra).is_err());
+    }
+
+    #[test]
+    fn replacement_metadata_preserves_dependency_order_and_rejects_bad_ids() {
+        let mut p = BTreeMap::from([
+            ("id".into(), "gxr_steamlink_suite".into()),
+            (
+                "gxrReplaces".into(),
+                "gxr_steamlink_pose_time,gxr_openxr_velocity_frame".into(),
+            ),
+        ]);
+        assert_eq!(replacement_ids(&p).unwrap()[0], "gxr_steamlink_pose_time");
+        for invalid in [
+            "",
+            "../gxr_bad",
+            "gxr_steamlink_suite",
+            "gxr_a,gxr_a",
+            "gxr_a;id",
+            "gxr_a, gxr_b",
+        ] {
+            p.insert("gxrReplaces".into(), invalid.into());
+            assert!(replacement_ids(&p).is_err(), "{invalid}");
+        }
+    }
+    #[test]
+    fn successful_migration_deletes_old_modules_and_temporary_copies() {
+        let root = tempfile::tempdir().unwrap();
+        let modules = root.path().join("modules");
+        let backup = root.path().join("backup");
+        fs::create_dir_all(modules.join("gxr_old")).unwrap();
+        fs::create_dir(&backup).unwrap();
+        fs::write(modules.join("gxr_old/disable"), "").unwrap();
+        migrate_directories(&modules, &backup, &["gxr_old".into()], || {
+            fs::create_dir(modules.join("gxr_new"))?;
+            Ok(())
+        })
+        .unwrap();
+        assert!(modules.join("gxr_new").exists());
+        assert!(!modules.join("gxr_old").exists());
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn migration_restores_removed_directories_after_partial_failure() {
+        for missing_second in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            let modules = root.path().join("modules");
+            let backup = root.path().join("backup");
+            fs::create_dir(&modules).unwrap();
+            fs::create_dir(&backup).unwrap();
+            let ids = vec!["gxr_first".into(), "gxr_second".into()];
+            for id in &ids {
+                if missing_second && id == "gxr_second" {
+                    continue;
+                }
+                fs::create_dir(modules.join(id)).unwrap();
+                fs::write(modules.join(id).join("disable"), "").unwrap();
+                fs::write(modules.join(id).join("saved"), id).unwrap();
+            }
+            assert!(
+                migrate_directories(&modules, &backup, &ids, || bail!(
+                    "injected install failure"
+                ))
+                .is_err()
+            );
+            assert!(modules.join("gxr_first/disable").exists());
+            assert_eq!(
+                fs::read_to_string(modules.join("gxr_first/saved")).unwrap(),
+                "gxr_first"
+            );
+            assert!(!backup.join("gxr_first").exists());
+            if !missing_second {
+                assert!(modules.join("gxr_second/disable").exists());
+            }
+        }
+    }
+
+    #[test]
+    fn declared_conditions_block_reactivation_without_a_registry() {
+        let root = tempfile::tempdir().unwrap();
+        let owner = root.path().join("gxr_arbitrary_bundle");
+        fs::create_dir(&owner).unwrap();
+        fs::write(owner.join("module.prop"), "id=gxr_arbitrary_bundle\ngxrReplaces=gxr_old_plugin\ngxrRequiresDisabled=gxr_other_plugin\n").unwrap();
+        assert!(ensure_not_superseded("gxr_old_plugin", root.path()).is_err());
+        assert!(ensure_not_superseded("gxr_other_plugin", root.path()).is_err());
+        assert!(ensure_not_superseded("gxr_unrelated", root.path()).is_ok());
+        fs::write(owner.join("remove"), "").unwrap();
+        assert!(ensure_not_superseded("gxr_old_plugin", root.path()).is_ok());
+    }
+
+    #[test]
+    fn target_preflight_rejects_reinstall_before_touching_old_modules() {
+        let root = tempfile::tempdir().unwrap();
+        install(root.path(), 2, |_| panic!("fresh install has no old owner")).unwrap();
+        let live = root.path().join("modules").join(ID);
+        fs::remove_file(live.join("disable")).unwrap();
+        let p = validate_payload(&package(2)).unwrap();
+        assert!(
+            preflight_target(
+                &p,
+                &root.path().join("modules"),
+                &root.path().join("pending")
+            )
+            .is_err()
+        );
+        assert!(!live.join("disable").exists());
+    }
+
     #[test]
     #[ignore = "requires GXR_RELEASE_FIXTURES with downloaded public ZIPs"]
     fn public_release_archives_match_installer_contract() {

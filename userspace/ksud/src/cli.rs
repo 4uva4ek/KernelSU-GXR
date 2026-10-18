@@ -292,6 +292,12 @@ enum Module {
     Install {
         /// module zip file path
         zip: String,
+        /// Explicitly approved installed IDs replaced by this package
+        #[arg(long, value_delimiter = ',')]
+        replace: Vec<String>,
+        /// Explicitly approved installed dependencies to disable and restore
+        #[arg(long, value_delimiter = ',')]
+        disable_conflicts: Vec<String>,
     },
 
     /// Undo module uninstall mark <id>
@@ -547,7 +553,11 @@ pub fn run() -> Result<()> {
                 None
             };
             match command {
-                Module::Install { zip } => module::install_module(&zip),
+                Module::Install {
+                    zip,
+                    replace,
+                    disable_conflicts,
+                } => module::install_module(&zip, &replace, &disable_conflicts),
                 Module::UndoUninstall { id } => module::undo_uninstall_module(&id),
                 Module::Uninstall { id } => module::uninstall_module(&id),
                 Module::Enable { id } => module::enable_module(&id),

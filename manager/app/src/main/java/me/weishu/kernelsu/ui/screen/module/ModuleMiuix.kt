@@ -714,6 +714,7 @@ private fun ModuleList(
                 ModuleItem(
                     module = module,
                     updateUrl = moduleUpdateInfo.downloadUrl,
+                deprecatedBy = moduleUpdateInfo.deprecatedBy ?: module.deprecatedBy,
                     onUninstall = {
                         actions.onRequestUninstallConfirmation(currentModuleState.value)
                     },
@@ -760,6 +761,7 @@ private fun ModuleList(
 fun ModuleItem(
     module: Module,
     updateUrl: String,
+    deprecatedBy: String?,
     onUndoUninstall: () -> Unit,
     onUninstall: () -> Unit,
     onCheckChanged: (Boolean) -> Unit,
@@ -774,7 +776,8 @@ fun ModuleItem(
     val updateTint = colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
     val hasUpdate = updateUrl.isNotEmpty()
     val textDecoration = if (module.remove) TextDecoration.LineThrough else null
-    val hasDescription = module.description.isNotBlank()
+    val displayDescription = if (deprecatedBy != null) stringResource(R.string.gxr_module_obsolete, deprecatedBy) + "\n\n${module.description}" else module.description
+    val hasDescription = displayDescription.isNotBlank()
     val maxLinesLimit = LocalModuleDescriptionMaxLines.current
     var expanded by rememberSaveable(module.id) { mutableStateOf(false) }
 
@@ -872,7 +875,7 @@ fun ModuleItem(
 
         if (hasDescription) {
             ExpandableDescriptionText(
-                text = module.description,
+                text = displayDescription,
                 expanded = expanded,
                 maxLinesLimit = maxLinesLimit,
                 modifier = Modifier

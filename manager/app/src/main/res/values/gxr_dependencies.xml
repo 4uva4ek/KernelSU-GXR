@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gxr_dependency_title">Module requirements</string>
+    <string name="gxr_dependency_remove">Remove: %1$s</string>
+    <string name="gxr_dependency_disable">Disable: %1$s</string>
+    <string name="gxr_dependency_details">Live changes must be restored first. If restoration fails, installation stops. Replaced modules and their temporary migration copies are deleted after successful installation. The new module installs disabled.</string>
+    <string name="gxr_dependency_confirm">Confirm and install</string>
+    <string name="gxr_dependency_cancel">Cancel</string>
+    <string name="gxr_dependency_failure">Dependency review failed: %1$s</string>
+    <string name="gxr_module_obsolete">Obsolete standalone module. Replaced by %1$s. Remove this module after reviewing its replacement.</string>
+</resources>

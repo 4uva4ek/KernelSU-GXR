@@ -42,9 +42,16 @@ class ModuleRepositoryImpl : ModuleRepository {
                         hasActionScript = obj.optBoolean("action"),
                         metamodule = (obj.optInt("metamodule") != 0) || obj.optBoolean("metamodule"),
                         actionIconPath = obj.optString("actionIcon").takeIf { it.isNotBlank() },
-                        webUiIconPath = obj.optString("webuiIcon").takeIf { it.isNotBlank() }
+                        webUiIconPath = obj.optString("webuiIcon").takeIf { it.isNotBlank() },
+                        deprecatedBy = obj.optString("gxrDeprecatedBy").takeIf { Regex("gxr_[A-Za-z0-9_-]+").matches(it) },
+                        replaces = obj.optString("gxrReplaces").split(',').filter { Regex("gxr_[A-Za-z0-9_-]+").matches(it) }.take(16),
                     )
-                }.toList()
+                }.toList().let { modules ->
+                    modules.map { module ->
+                        val replacements = modules.filter { !it.remove && module.id in it.replaces }.map { it.id }
+                        module.copy(deprecatedBy = module.deprecatedBy ?: replacements.singleOrNull())
+                    }
+                }
         }
     }
 
@@ -74,6 +81,8 @@ class ModuleRepositoryImpl : ModuleRepository {
             }
 
             val updateJson = JSONObject(result)
+            val deprecatedBy = updateJson.optString("deprecatedBy").takeIf { Regex("gxr_[A-Za-z0-9_-]+").matches(it) }
+            if (deprecatedBy != null) return@runCatching ModuleUpdateInfo.Empty.copy(deprecatedBy = deprecatedBy)
             var version = updateJson.optString("version", "")
             version = sanitizeVersionString(version)
             val versionCode = updateJson.optInt("versionCode", 0)

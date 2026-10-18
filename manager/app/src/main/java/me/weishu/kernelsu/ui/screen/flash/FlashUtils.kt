@@ -103,11 +103,12 @@ sealed class FlashIt : Parcelable {
 fun flashModulesSequentially(
     uris: List<Uri>,
     onStdout: (String) -> Unit,
-    onStderr: (String) -> Unit
+    onStderr: (String) -> Unit,
+    approvals: Map<String, me.weishu.kernelsu.ui.util.module.ModuleDependencyApproval> = emptyMap(),
 ): FlashResult {
     var needsReboot = false
     for (uri in uris) {
-        flashModule(uri, onStdout, onStderr).apply {
+        flashModule(uri, onStdout, onStderr, approvals[uri.toString()]).apply {
             needsReboot = needsReboot || showReboot
             if (code != 0) {
                 return FlashResult(code, err, needsReboot)
@@ -120,7 +121,8 @@ fun flashModulesSequentially(
 fun flashIt(
     flashIt: FlashIt,
     onStdout: (String) -> Unit,
-    onStderr: (String) -> Unit
+    onStderr: (String) -> Unit,
+    approvals: Map<String, me.weishu.kernelsu.ui.util.module.ModuleDependencyApproval> = emptyMap(),
 ): FlashResult {
     return when (flashIt) {
         is FlashIt.FlashBoot -> installBoot(
@@ -147,7 +149,7 @@ fun flashIt(
         )
 
         is FlashIt.FlashModules -> {
-            flashModulesSequentially(flashIt.uris, onStdout, onStderr)
+            flashModulesSequentially(flashIt.uris, onStdout, onStderr, approvals)
         }
 
         FlashIt.FlashRestore -> restoreBoot(onStdout, onStderr)
@@ -163,7 +165,8 @@ fun FlashEffect(
     onTextUpdate: (String) -> Unit,
     onShowRebootChange: (Boolean) -> Unit,
     onFlashingStatusChange: (FlashingStatus) -> Unit,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    approvals: Map<String, me.weishu.kernelsu.ui.util.module.ModuleDependencyApproval> = emptyMap(),
 ) {
     LaunchedEffect(enabled) {
         if (!enabled || text.isNotEmpty()) {
@@ -172,7 +175,7 @@ fun FlashEffect(
         var currentText = text
         val mainHandler = Handler(Looper.getMainLooper())
         withContext(Dispatchers.IO) {
-            flashIt(flashIt, onStdout = {
+            flashIt(flashIt, approvals = approvals, onStdout = {
                 val tempText = "$it\n"
                 if (tempText.startsWith("[H[J")) { // clear command
                     currentText = tempText.substring(6)

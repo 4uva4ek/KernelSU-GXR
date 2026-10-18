@@ -203,7 +203,8 @@ private fun flashWithIO(
 fun flashModule(
     uri: Uri,
     onStdout: (String) -> Unit,
-    onStderr: (String) -> Unit
+    onStderr: (String) -> Unit,
+    approval: me.weishu.kernelsu.ui.util.module.ModuleDependencyApproval? = null,
 ): FlashResult {
     val resolver = ksuApp.contentResolver
     val file = File.createTempFile("module-", ".zip", ksuApp.cacheDir)
@@ -219,7 +220,16 @@ fun flashModule(
                 reader.lineSequence().any { it.startsWith("id=gxr_") }
             }
         }
-        val cmd = "module install '${file.absolutePath}'"
+        if (approval != null) {
+            require(me.weishu.kernelsu.ui.util.module.ModuleDependencies.sha256(file) == approval.sha256) {
+                "Module ZIP changed after dependency review; select it again"
+            }
+        }
+        val approvedIds = (approval?.remove.orEmpty() + approval?.disable.orEmpty())
+        require(approvedIds.all { Regex("gxr_[A-Za-z0-9_-]+").matches(it) }) { "Invalid dependency consent" }
+        val replace = approval?.remove?.takeIf { it.isNotEmpty() }?.joinToString(",")?.let { " --replace $it" }.orEmpty()
+        val disable = approval?.disable?.takeIf { it.isNotEmpty() }?.joinToString(",")?.let { " --disable-conflicts $it" }.orEmpty()
+        val cmd = "module install '${file.absolutePath}'$replace$disable"
         val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
         Log.i("KernelSU", "install module $uri result: $result")
         // GXR updates finish disabled; a restart is never the next automatic step.

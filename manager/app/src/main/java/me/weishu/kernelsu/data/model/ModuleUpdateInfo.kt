@@ -6,7 +6,8 @@ import androidx.compose.runtime.Immutable
 data class ModuleUpdateInfo(
     val downloadUrl: String,
     val version: String,
-    val changelog: String
+    val changelog: String,
+    val deprecatedBy: String? = null,
 ) {
     companion object {
         val Empty = ModuleUpdateInfo("", "", "")

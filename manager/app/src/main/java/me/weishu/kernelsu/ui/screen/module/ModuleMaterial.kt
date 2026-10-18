@@ -505,6 +505,7 @@ private fun ModuleList(
             ModuleItem(
                 module = module,
                 updateUrl = moduleUpdateInfo.downloadUrl,
+                deprecatedBy = moduleUpdateInfo.deprecatedBy ?: module.deprecatedBy,
                 onUninstallClicked = {
                     if (module.remove) {
                         actions.onUndoUninstallModule(module)
@@ -694,6 +695,7 @@ private fun ModuleShortcutSheet(
 private fun ModuleItem(
     module: Module,
     updateUrl: String,
+    deprecatedBy: String?,
     onUninstallClicked: () -> Unit,
     onCheckChanged: (Boolean) -> Unit,
     onUpdate: () -> Unit,
@@ -702,7 +704,8 @@ private fun ModuleItem(
     onExecuteAction: () -> Unit,
     closeSearch: () -> Unit
 ) {
-    val hasDescription = module.description.isNotBlank()
+    val displayDescription = if (deprecatedBy != null) stringResource(R.string.gxr_module_obsolete, deprecatedBy) + "\n\n${module.description}" else module.description
+    val hasDescription = displayDescription.isNotBlank()
     val maxLinesLimit = LocalModuleDescriptionMaxLines.current
     var expanded by rememberSaveable(module.id) { mutableStateOf(false) }
     val canOpenWebUi = module.hasWebUi && !module.remove && module.enabled
@@ -781,7 +784,7 @@ private fun ModuleItem(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ExpandableDescriptionText(
-                    text = module.description,
+                    text = displayDescription,
                     expanded = expanded,
                     maxLinesLimit = maxLinesLimit,
                     modifier = Modifier

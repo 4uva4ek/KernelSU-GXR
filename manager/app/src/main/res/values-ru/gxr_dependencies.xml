@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gxr_dependency_title">Условия установки модуля</string>
+    <string name="gxr_dependency_remove">Удалить: %1$s</string>
+    <string name="gxr_dependency_disable">Отключить: %1$s</string>
+    <string name="gxr_dependency_details">Сначала будут восстановлены изменения работающих патчей. При ошибке установка остановится. Заменённые модули и временные копии миграции удаляются после успешной установки. Новый модуль устанавливается выключенным.</string>
+    <string name="gxr_dependency_confirm">Подтвердить и установить</string>
+    <string name="gxr_dependency_cancel">Отмена</string>
+    <string name="gxr_dependency_failure">Не удалось проверить условия установки: %1$s</string>
+    <string name="gxr_module_obsolete">Устаревший отдельный модуль. Заменён модулем %1$s. Удалите его после проверки замены.</string>
+</resources>

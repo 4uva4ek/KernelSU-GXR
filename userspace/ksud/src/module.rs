@@ -789,13 +789,22 @@ fn install_module_to_system(zip: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn install_module(zip: &str) -> Result<()> {
+pub fn install_module(
+    zip: &str,
+    replacements: &[String],
+    disable_conflicts: &[String],
+) -> Result<()> {
     ksucalls::ensure_uapi_version_matched()?;
 
     // The reviewed GXR path never runs installer.sh or regenerates preinit.
-    if crate::gxr_update::try_install(zip)? {
+    if crate::gxr_update::try_install(zip, replacements, disable_conflicts)? {
         return Ok(());
     }
+
+    ensure!(
+        replacements.is_empty() && disable_conflicts.is_empty(),
+        "Dependency consent is only supported for GXR packages"
+    );
 
     let result = install_module_to_system(zip);
     if let Err(ref e) = result {
@@ -829,6 +838,7 @@ pub fn undo_uninstall_module(id: &str) -> Result<()> {
 
 pub fn uninstall_module(id: &str) -> Result<()> {
     validate_module_id(id)?;
+    crate::gxr_update::prepare_uninstall(id)?;
 
     let module_path = Path::new(defs::MODULE_DIR).join(id);
     ensure!(module_path.exists(), "Module {id} not found");
@@ -856,6 +866,7 @@ pub fn run_action(id: &str) -> Result<()> {
 
 pub fn enable_module(id: &str) -> Result<()> {
     validate_module_id(id)?;
+    crate::gxr_update::ensure_not_superseded(id, Path::new(defs::MODULE_DIR))?;
 
     let module_path = Path::new(defs::MODULE_DIR).join(id);
     ensure!(module_path.exists(), "Module {id} not found");

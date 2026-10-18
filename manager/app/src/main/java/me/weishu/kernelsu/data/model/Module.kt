@@ -19,4 +19,6 @@ data class Module(
     val metamodule: Boolean,
     val actionIconPath: String?,
     val webUiIconPath: String?,
+    val deprecatedBy: String? = null,
+    val replaces: List<String> = emptyList(),
 )
