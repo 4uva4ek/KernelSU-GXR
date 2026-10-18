@@ -58,28 +58,46 @@ fn packages(output: &str) -> Result<BTreeSet<Package>> {
         .collect()
 }
 
-fn runtime_loaded(maps: &str) -> bool {
-    maps.lines().any(|line| {
-        let fields: Vec<_> = line.split_whitespace().collect();
+fn runtime_loaded(maps: impl AsRef<[u8]>) -> bool {
+    // procfs names and mapped paths are bytes, not necessarily UTF-8. Match the
+    // known runtime exactly without decoding unrelated mappings (e.g. Go apps).
+    maps.as_ref().split(|&b| b == b'\n').any(|line| {
+        let fields: Vec<_> = line
+            .split(u8::is_ascii_whitespace)
+            .filter(|field| !field.is_empty())
+            .collect();
         fields.len() >= 6
-            && fields[1].as_bytes().get(2) == Some(&b'x')
+            && fields[1].get(2) == Some(&b'x')
             && matches!(
                 fields[5],
-                "/system/lib64/libopenxr_android.so" | "/system/lib/libopenxr_android.so"
+                b"/system/lib64/libopenxr_android.so" | b"/system/lib/libopenxr_android.so"
             )
     })
 }
 
-fn start_time(stat: &str) -> Result<u64> {
-    // comm can contain spaces and parentheses; field 22 follows its last ')'.
-    stat.rsplit_once(')')
-        .context("process stat comm")?
-        .1
-        .split_whitespace()
+fn start_time(stat: impl AsRef<[u8]>) -> Result<u64> {
+    // comm can contain spaces, parentheses, and non-UTF-8 bytes; field 22 follows its last ')'.
+    let stat = stat.as_ref();
+    let rest = stat
+        .iter()
+        .rposition(|&b| b == b')')
+        .and_then(|index| stat.get(index + 1..))
+        .context("process stat comm")?;
+    let field = rest
+        .split(u8::is_ascii_whitespace)
+        .filter(|field| !field.is_empty())
         .nth(19)
-        .context("process start time")?
+        .context("process start time")?;
+    std::str::from_utf8(field)
+        .context("invalid process start time")?
         .parse()
         .context("invalid process start time")
+}
+
+fn process_gone(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<io::Error>().is_some_and(|e| {
+        e.kind() == io::ErrorKind::NotFound || e.raw_os_error() == Some(libc::ESRCH)
+    })
 }
 
 fn client(
@@ -89,14 +107,15 @@ fn client(
     system_uids: &BTreeSet<u32>,
 ) -> Result<Option<Client>> {
     let dir = proc.join(pid.to_string());
-    let identity = fs::read_to_string(dir.join("stat"))?;
+    let identity = fs::read(dir.join("stat"))?;
     let start = start_time(&identity)?;
-    let status = fs::read_to_string(dir.join("status"))?;
+    let status = fs::read(dir.join("status"))?;
     let uid_line = status
-        .lines()
-        .find_map(|line| line.strip_prefix("Uid:"))
+        .split(|&b| b == b'\n')
+        .find_map(|line| line.strip_prefix(b"Uid:"))
         .context("process UID")?;
-    let uids = uid_line
+    let uids = std::str::from_utf8(uid_line)
+        .context("process UID")?
         .split_whitespace()
         .map(str::parse::<u32>)
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -112,15 +131,17 @@ fn client(
     if owners.is_empty() {
         return Ok(None);
     }
-    if !runtime_loaded(&fs::read_to_string(dir.join("maps"))?) {
+    if !runtime_loaded(fs::read(dir.join("maps"))?) {
         return Ok(None);
     }
     let cmdline = fs::read(dir.join("cmdline"))?;
-    let name = std::str::from_utf8(cmdline.split(|c| *c == 0).next().unwrap_or_default())?;
-    let named = name.split(':').next().unwrap_or_default();
+    let arg0 = cmdline.split(|&c| c == 0).next().unwrap_or_default();
+    let named = std::str::from_utf8(arg0)
+        .ok()
+        .and_then(|name| name.split(':').next());
     let package = owners
         .iter()
-        .find(|app| app.name == named)
+        .find(|app| Some(app.name.as_str()) == named)
         .copied()
         .or_else(|| (owners.len() == 1).then_some(owners[0]))
         .context("ambiguous OpenXR app ownership; refusing to stop a shared UID")?;
@@ -132,7 +153,7 @@ fn client(
     ) {
         return Ok(None);
     }
-    if start_time(&fs::read_to_string(dir.join("stat"))?)? != start {
+    if start_time(fs::read(dir.join("stat"))?)? != start {
         return Ok(None);
     }
     Ok(Some(Client {
@@ -156,10 +177,7 @@ fn clients(
         match client(proc, pid, apps, system_uids) {
             Ok(Some(found)) => result.push(found),
             Ok(None) => (),
-            Err(error)
-                if error
-                    .downcast_ref::<io::Error>()
-                    .is_some_and(|e| e.kind() == io::ErrorKind::NotFound) => {}
+            Err(error) if process_gone(&error) => {}
             Err(error) => return Err(error.context(format!("inspect process {pid}"))),
         }
     }
@@ -326,13 +344,7 @@ fn close_with(
             match client(proc, target.pid, &apps, &system_uids) {
                 Ok(Some(current)) if current == target => (),
                 Ok(_) => continue,
-                Err(error)
-                    if error
-                        .downcast_ref::<io::Error>()
-                        .is_some_and(|e| e.kind() == io::ErrorKind::NotFound) =>
-                {
-                    continue;
-                }
+                Err(error) if process_gone(&error) => continue,
                 Err(error) => return Err(error),
             }
             let user = (target.package.uid / 100_000).to_string();
@@ -461,6 +473,71 @@ mod tests {
             |args, _| Ok(inventory(args).expect("must not force-stop")),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn non_utf8_proc_files_do_not_abort_restart() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path();
+        process(p, 5806, 10255, "logger.com.valvesoftware.steamlinkvr", "");
+        process(p, 10, 10274, "com.valvesoftware.steamlinkvr", MAPS);
+        for (pid, uid, with_xr) in [(5806, 10255, false), (10, 10274, true)] {
+            let dir = p.join(pid.to_string());
+            let mut stat = format!("{pid} (name with ) space ").into_bytes();
+            stat.extend_from_slice(&[0xff, 0xfe]);
+            stat.extend_from_slice(format!(") S {}42 0\n", "0 ".repeat(18)).as_bytes());
+            fs::write(dir.join("stat"), stat).unwrap();
+            let mut status = b"Name:\ttailscale\xff\n".to_vec();
+            status.extend_from_slice(format!("Uid:\t{uid}\t{uid}\t{uid}\t{uid}\n").as_bytes());
+            fs::write(dir.join("status"), status).unwrap();
+            let mut maps = b"1000-2000 rw-p 0 00:00 0 [anon:go\xff\xfe]\n".to_vec();
+            if with_xr {
+                maps.extend_from_slice(MAPS.as_bytes());
+            } else {
+                maps.extend_from_slice(b"2000-3000 r-xp 0 01:01 1 /data/app/libtailscale.so\n");
+            }
+            fs::write(dir.join("maps"), maps).unwrap();
+        }
+        let mut stopped = Vec::new();
+        close_with(p, Instant::now() + Duration::from_secs(1), |args, _| {
+            if let Some(output) = inventory(args) {
+                return Ok(output);
+            }
+            stopped.push(args[4].to_owned());
+            fs::remove_dir_all(p.join("10")).unwrap();
+            Ok(String::new())
+        })
+        .unwrap();
+        assert_eq!(stopped, vec!["com.valvesoftware.steamlinkvr"]);
+        assert!(p.join("5806").exists());
+    }
+
+    #[test]
+    fn non_utf8_cmdline_requires_unambiguous_package_ownership() {
+        let d = tempfile::tempdir().unwrap();
+        process(d.path(), 10, 10255, "custom.process", MAPS);
+        fs::write(d.path().join("10/cmdline"), b"custom\xff\0").unwrap();
+        let unique = packages("package:one.app uid:10255\n").unwrap();
+        let found = clients(d.path(), &unique, &BTreeSet::new()).unwrap();
+        assert_eq!(found[0].package.name, "one.app");
+        let shared = packages("package:one.app uid:10255\npackage:two.app uid:10255\n").unwrap();
+        assert!(clients(d.path(), &shared, &BTreeSet::new()).is_err());
+    }
+
+    #[test]
+    fn only_vanished_process_errors_are_ignored() {
+        assert!(process_gone(
+            &io::Error::from_raw_os_error(libc::ESRCH).into()
+        ));
+        assert!(process_gone(
+            &io::Error::from_raw_os_error(libc::ENOENT).into()
+        ));
+        assert!(!process_gone(
+            &io::Error::from_raw_os_error(libc::EACCES).into()
+        ));
+        assert!(!process_gone(
+            &io::Error::from(io::ErrorKind::InvalidData).into()
+        ));
     }
 
     #[test]
