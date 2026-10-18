@@ -1,5 +1,11 @@
 # KernelSU GXR: tested configuration
 
+## GXR 1.0.12: non-UTF-8 process metadata
+
+Version code 32678. Merges PR #1 by BlueScorpioVR and retains its three regression tests. See [release notes](docs/RELEASE-1.0.12.md).
+
+Prior candidate evidence: Android arm64 check, clippy, formatting, 41 host tests and daemon build passed in https://github.com/BlueScorpioVR/KernelSU-GXR/actions/runs/39150840330 . The PR author reports a successful soft restart with Tailscale. These results do not establish device validation or binary identity of the new 1.0.12 build. Kernel/root acquisition code and module preferences are unchanged by this patch.
+
 ## GXR 1.0.11: module migration and languages
 
 Public release of the tested 1.0.11-dev module migration and language changes. Version code 32677 also updates 1.0.11-dev (32676).
