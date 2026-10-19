@@ -83,6 +83,10 @@ class ModuleRepositoryImpl : ModuleRepository {
             val updateJson = JSONObject(result)
             val deprecatedBy = updateJson.optString("deprecatedBy").takeIf { Regex("gxr_[A-Za-z0-9_-]+").matches(it) }
             if (deprecatedBy != null) return@runCatching ModuleUpdateInfo.Empty.copy(deprecatedBy = deprecatedBy)
+            if (updateJson.optBoolean("retired")) {
+                val reason = updateJson.optString("retiredReason").filter { it >= ' ' }.trim().take(300)
+                return@runCatching ModuleUpdateInfo.Empty.copy(retiredReason = reason)
+            }
             var version = updateJson.optString("version", "")
             version = sanitizeVersionString(version)
             val versionCode = updateJson.optInt("versionCode", 0)

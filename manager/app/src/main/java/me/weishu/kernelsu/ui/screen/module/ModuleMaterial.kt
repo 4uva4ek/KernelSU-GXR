@@ -506,6 +506,7 @@ private fun ModuleList(
                 module = module,
                 updateUrl = moduleUpdateInfo.downloadUrl,
                 deprecatedBy = moduleUpdateInfo.deprecatedBy ?: module.deprecatedBy,
+                retiredReason = moduleUpdateInfo.retiredReason,
                 onUninstallClicked = {
                     if (module.remove) {
                         actions.onUndoUninstallModule(module)
@@ -696,6 +697,7 @@ private fun ModuleItem(
     module: Module,
     updateUrl: String,
     deprecatedBy: String?,
+    retiredReason: String?,
     onUninstallClicked: () -> Unit,
     onCheckChanged: (Boolean) -> Unit,
     onUpdate: () -> Unit,
@@ -813,6 +815,41 @@ private fun ModuleItem(
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         backgroundColor = MaterialTheme.colorScheme.primary
                     )
+                }
+            }
+
+            if (retiredReason != null && !module.remove) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(12.dp, 10.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.gxr_module_retired_title),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = retiredReason.ifBlank { stringResource(R.string.gxr_module_retired_default) },
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 6.dp),
+                        onClick = onUninstallClicked,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) {
+                        Text(stringResource(R.string.gxr_module_retired_remove))
+                    }
                 }
             }
 

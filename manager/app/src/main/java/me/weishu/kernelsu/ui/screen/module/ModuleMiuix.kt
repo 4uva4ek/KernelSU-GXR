@@ -715,6 +715,7 @@ private fun ModuleList(
                     module = module,
                     updateUrl = moduleUpdateInfo.downloadUrl,
                 deprecatedBy = moduleUpdateInfo.deprecatedBy ?: module.deprecatedBy,
+                    retiredReason = moduleUpdateInfo.retiredReason,
                     onUninstall = {
                         actions.onRequestUninstallConfirmation(currentModuleState.value)
                     },
@@ -762,6 +763,7 @@ fun ModuleItem(
     module: Module,
     updateUrl: String,
     deprecatedBy: String?,
+    retiredReason: String?,
     onUndoUninstall: () -> Unit,
     onUninstall: () -> Unit,
     onCheckChanged: (Boolean) -> Unit,
@@ -885,6 +887,37 @@ fun ModuleItem(
                 color = colorScheme.onSurfaceVariantSummary,
                 textDecoration = textDecoration
             )
+        }
+
+        if (retiredReason != null && !module.remove) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colorScheme.errorContainer)
+                    .padding(12.dp, 10.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.gxr_module_retired_title),
+                    color = colorScheme.onErrorContainer,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = retiredReason.ifBlank { stringResource(R.string.gxr_module_retired_default) },
+                    color = colorScheme.onErrorContainer,
+                    fontSize = 13.sp,
+                )
+                TextButton(
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 6.dp),
+                    text = stringResource(R.string.gxr_module_retired_remove),
+                    onClick = onUninstall,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            }
         }
 
         HorizontalDivider(

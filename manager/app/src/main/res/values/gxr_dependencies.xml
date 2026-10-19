@@ -8,4 +8,7 @@
     <string name="gxr_dependency_cancel">Cancel</string>
     <string name="gxr_dependency_failure">Dependency review failed: %1$s</string>
     <string name="gxr_module_obsolete">Obsolete standalone module. Replaced by %1$s. Remove this module after reviewing its replacement.</string>
+    <string name="gxr_module_retired_title">Deprecated module</string>
+    <string name="gxr_module_retired_default">This module is no longer maintained and will not receive updates. Remove it.</string>
+    <string name="gxr_module_retired_remove">Remove</string>
 </resources>
