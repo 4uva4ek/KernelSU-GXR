@@ -1,4 +1,4 @@
-# KernelSU GXR 1.0.14
+# KernelSU GXR 1.0.15
 
 Module source catalogues can mark an entry with `"experimental": true`.
 The Manager shows a red Experimental label in its source card and installation
@@ -10,6 +10,6 @@ Existing schemaVersion 1 catalogues remain compatible. Older Managers ignore
 the field and do not show the label. This label describes catalogue entries;
 it does not change module activation or mark installed modules automatically.
 
-Version code: 32680. Kernel, root acquisition, daemon and module lifecycle code
+Version code: 32681. Kernel, root acquisition, daemon and module lifecycle code
 are unchanged. The signed release is built by the retained GXR signing workflow.
 No headset installation or visual device test is performed for this release.
