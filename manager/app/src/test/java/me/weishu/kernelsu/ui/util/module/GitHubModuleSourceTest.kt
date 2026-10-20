@@ -18,6 +18,20 @@ class GitHubModuleSourceTest {
     private val catalogue = """{"schemaVersion":1,"modules":[{"id":"test_module","name":"Test","updateJson":"https://example.com/update.json"}]}"""
     private val feed = """{"version":"1.2.3","versionCode":123,"zipUrl":"https://example.com/module.zip","sha256":"${"a".repeat(64)}"}"""
 
+    @Test fun experimentalIsExplicitAndDefaultsToFalse() {
+        assertFalse(GitHubModuleSource.parseCatalogue(catalogue) { feed }.single().experimental)
+        for (flag in listOf(true, false)) {
+            val text = catalogue.replace("\"name\":\"Test\"", "\"name\":\"Test\",\"experimental\":$flag")
+            assertEquals(flag, GitHubModuleSource.parseCatalogue(text) { feed }.single().experimental)
+        }
+        for (invalid in listOf("\"true\"", "1", "null")) {
+            val text = catalogue.replace("\"name\":\"Test\"", "\"name\":\"Test\",\"experimental\":$invalid")
+            assertThrows(IllegalArgumentException::class.java) {
+                GitHubModuleSource.parseCatalogue(text) { feed }
+            }
+        }
+    }
+
     @Test fun catalogueUsesPublishedVersionAndRejectsUnsafeMetadata() {
         val modules = GitHubModuleSource.parseCatalogue(catalogue) { feed }
         assertEquals("test_module", modules.single().id)

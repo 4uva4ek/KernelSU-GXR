@@ -8,7 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import me.weishu.kernelsu.R
 import me.weishu.kernelsu.ui.viewmodel.ModuleSourcesState
 import me.weishu.kernelsu.ui.viewmodel.ModuleSourcesViewModel
 
@@ -86,6 +88,11 @@ fun ModuleSourcesPanel(state: ModuleSourcesState, model: ModuleSourcesViewModel,
                             onCheckedChange = { model.toggle(item.key) })
                         Column(Modifier.weight(1f)) {
                             Text(item.name, style = MaterialTheme.typography.titleMedium)
+                            if (item.experimental) Text(
+                                stringResource(R.string.module_experimental),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
                             Text(item.version + if (upToDate) " · Installed" else if (current != null) " · Update available" else "")
                             if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
                         }
@@ -103,7 +110,13 @@ fun ModuleSourcesPanel(state: ModuleSourcesState, model: ModuleSourcesViewModel,
         title = { Text("Install selected modules") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(state.active)
-            state.packages.filter { it.key in state.selected }.forEach { Text("${it.name} · ${it.version}") }
+            state.packages.filter { it.key in state.selected }.forEach {
+                Text("${it.name} · ${it.version}")
+                if (it.experimental) Text(
+                    stringResource(R.string.module_experimental),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Text("GXR replacements stay DISABLED. No automatic restart. Other modules use their standard installer.")
         } },
         confirmButton = { TextButton(onClick = { confirm = false; model.installSelected(installed) }) { Text("Install") } },

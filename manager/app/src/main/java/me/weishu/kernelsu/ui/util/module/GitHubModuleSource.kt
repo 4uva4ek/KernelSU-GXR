@@ -17,6 +17,7 @@ data class SourcePackage(
     val description: String,
     val zipUrl: String,
     val sha256: String?,
+    val experimental: Boolean = false,
 )
 
 object GitHubModuleSource {
@@ -109,6 +110,9 @@ object GitHubModuleSource {
         val ids = mutableSetOf<String>()
         return (0 until modules.length()).map { index ->
             val module = modules.getJSONObject(index)
+            require(!module.has("experimental") || module.get("experimental") is Boolean) {
+                "experimental must be a boolean"
+            }
             val id = module.getString("id")
             require(Regex("[a-zA-Z][a-zA-Z0-9._-]+").matches(id) && ids.add(id)) { "Invalid or duplicate module ID" }
             val update = JSONObject(fetch(feeds.getValue(id)))
@@ -117,7 +121,8 @@ object GitHubModuleSource {
             val hash = update.optString("sha256").takeIf { it.isNotEmpty() }
             require(hash == null || Regex("[0-9a-f]{64}").matches(hash)) { "Invalid SHA-256" }
             SourcePackage(id, id, module.getString("name"), update.getString("version"), code,
-                module.optString("description"), https(update.getString("zipUrl")), hash)
+                module.optString("description"), https(update.getString("zipUrl")), hash,
+                experimental = module.optBoolean("experimental", false))
         }
     }
 

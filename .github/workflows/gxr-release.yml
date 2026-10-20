@@ -77,6 +77,9 @@ jobs:
           bash scripts/build-gxr.sh
           cp TESTED.md out/gxr/TESTED.md
           printf 'Source: %s\nRef: %s\nBuild: %s/%s/actions/runs/%s\nProfile: SM-I610, android12-5.10, KDP=y, DEFEX=n, RKP_NO_PATCH_TEXT=y, SCS=y, CFI=y\nSigning: APK v2 only\n' "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > out/gxr/BUILD-INFO.txt
+      - name: Verify module source catalogue parsing
+        working-directory: manager
+        run: bash gradlew testReleaseUnitTest --tests me.weishu.kernelsu.ui.util.module.GitHubModuleSourceTest -Pandroid.injected.build.abi=arm64-v8a
       - uses: actions/upload-artifact@v4
         with:
           name: KernelSU-GXR-${{ github.sha }}
