@@ -18,7 +18,7 @@ long-term stability have not been verified. See the versioned evidence below.
 
 - [Exact tested firmware, kernel and APK](TESTED.md)
 - [Release checklist: version codes, tags, feeds](docs/RELEASING.md)
-- [1.0.15: experimental module labels](docs/RELEASE-1.0.15.md)
+- [1.0.16: experimental module labels](docs/RELEASE-1.0.16.md)
 - [1.0.12: soft restart with non-UTF-8 process names](docs/RELEASE-1.0.12.md)
 - [1.0.11: module migration and languages](docs/RELEASE-1.0.11.md)
 - [1.0.9: installation of modules with WebUI](docs/RELEASE-1.0.9.md)

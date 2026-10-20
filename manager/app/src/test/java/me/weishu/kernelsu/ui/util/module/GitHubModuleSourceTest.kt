@@ -32,6 +32,23 @@ class GitHubModuleSourceTest {
         }
     }
 
+    @Test fun separateExperimentalCatalogueMergesWithoutAffectingLegacyEntries() {
+        val extra = catalogue.replace("test_module", "trial_module")
+        val merged = requireNotNull(GitHubModuleSource.mergeCatalogues(catalogue, extra))
+        val modules = GitHubModuleSource.parseCatalogue(merged) { feed }
+        assertEquals(listOf("test_module", "trial_module"), modules.map { it.id })
+        assertFalse(modules[0].experimental)
+        assertTrue(modules[1].experimental)
+        assertFalse(GitHubModuleSource.parseCatalogue(
+            requireNotNull(GitHubModuleSource.mergeCatalogues(catalogue, null))) { feed }.single().experimental)
+        assertTrue(GitHubModuleSource.parseCatalogue(
+            requireNotNull(GitHubModuleSource.mergeCatalogues(null, extra))) { feed }.single().experimental)
+        assertNull(GitHubModuleSource.mergeCatalogues(null, null))
+        assertThrows(IllegalArgumentException::class.java) {
+            GitHubModuleSource.mergeCatalogues(catalogue, catalogue)
+        }
+    }
+
     @Test fun catalogueUsesPublishedVersionAndRejectsUnsafeMetadata() {
         val modules = GitHubModuleSource.parseCatalogue(catalogue) { feed }
         assertEquals("test_module", modules.single().id)

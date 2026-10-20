@@ -1,11 +1,11 @@
 # KernelSU GXR: tested configuration
 
-## GXR 1.0.15: experimental catalogue labels
+## GXR 1.0.16: experimental catalogue labels
 
-Version code 32681. Adds an optional boolean `experimental` catalogue field and
+Version code 32682. Adds an optional boolean `experimental` catalogue field and
 localized red labels in source cards and installation confirmation. Regression
 coverage checks absent, true, false and invalid field values. See
-[release notes](docs/RELEASE-1.0.15.md).
+[release notes](docs/RELEASE-1.0.16.md).
 
 No headset installation or on-device visual validation: the owner will update
 the Manager. Kernel and userspace sources are unchanged.

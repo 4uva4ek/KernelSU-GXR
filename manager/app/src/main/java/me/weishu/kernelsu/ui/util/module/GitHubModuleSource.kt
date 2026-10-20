@@ -61,7 +61,30 @@ object GitHubModuleSource {
         val info = JSONObject(requireNotNull(json("https://api.github.com/repos/$safeRepo")))
         val branch = info.getString("default_branch")
         require(Regex("[A-Za-z0-9_./-]+").matches(branch) && !branch.contains("..")) { "Unsupported default branch name" }
-        return json("https://raw.githubusercontent.com/$safeRepo/$branch/modules.json", true)
+        val base = "https://raw.githubusercontent.com/$safeRepo/$branch"
+        return mergeCatalogues(
+            json("$base/modules.json", true),
+            json("$base/modules-experimental.json", true),
+        )
+    }
+
+    internal fun mergeCatalogues(standard: String?, experimental: String?): String? {
+        if (standard == null && experimental == null) return null
+        val entries = JSONArray()
+        for ((text, isExperimental) in listOf(standard to false, experimental to true)) {
+            if (text == null) continue
+            val root = JSONObject(text)
+            require(root.getInt("schemaVersion") == 1) { "Unsupported catalogue version" }
+            val modules = root.getJSONArray("modules")
+            for (index in 0 until modules.length()) {
+                val module = modules.getJSONObject(index)
+                if (isExperimental) module.put("experimental", true)
+                entries.put(module)
+            }
+        }
+        val merged = JSONObject().put("schemaVersion", 1).put("modules", entries).toString()
+        catalogueFeeds(merged) // Reject ambiguous IDs across the two catalogues.
+        return merged
     }
 
     fun load(repo: String): List<SourcePackage> {
